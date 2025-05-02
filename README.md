@@ -27,14 +27,10 @@
 ## 🛠 Технологический стек
 | Компонент       | Технология                          |
 |-----------------|-------------------------------------|
-| Бэкенд         | Python 3.10+                        |
-| Фронтенд       | TypeScript                          |
-| ML-модель      | SQLCoder (Hugging Face)             |
-| Интеграция     | VS Code Extension API               |
-![VSCode Extension](https://img.shields.io/badge/Visual_Studio_Code-007ACC?style=for-the-badge&logo=visual-studio-code&logoColor=white)
-![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
-![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
-![Hugging Face](https://img.shields.io/badge/Hugging_Face-FFD21E?style=for-the-badge&logo=huggingface&logoColor=black)
+| Бэкенд         | ![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)                        |
+| Фронтенд       | ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)                          |
+| ML-модель      | ![Hugging Face](https://img.shields.io/badge/Hugging_Face-FFD21E?style=for-the-badge&logo=huggingface&logoColor=black)             |
+| Интеграция     | ![VSCode Extension](https://img.shields.io/badge/Visual_Studio_Code-007ACC?style=for-the-badge&logo=visual-studio-code&logoColor=white)               |
 
 ## 📌 Прогресс разработки
 - ✅ **SQL-extractor** - завершен
