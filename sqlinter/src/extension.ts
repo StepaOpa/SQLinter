@@ -1,26 +1,45 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
+import { exec } from 'child_process';
 
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
+    console.log('Congratulations, your extension "sqlinter" is now active!');
 
-	// Use the console to output diagnostic information (console.log) and errors (console.error)
-	// This line of code will only be executed once when your extension is activated
-	console.log('Congratulations, your extension "sqlinter" is now active!');
+    // Регистрируем обработчик для сохранения файла
+    const saveDisposable = vscode.workspace.onDidSaveTextDocument((document) => {
+        // Проверяем, нужно ли обрабатывать этот файл (например, по расширению)
+        if (document.fileName.endsWith('.py')) {  // Можете изменить условие
+            runPythonScript(document.fileName);
+        }
+    });
 
-	// The command has been defined in the package.json file
-	// Now provide the implementation of the command with registerCommand
-	// The commandId parameter must match the command field in package.json
-	const disposable = vscode.commands.registerCommand('sqlinter.helloWorld', () => {
-		// The code you place here will be executed every time your command is executed
-		// Display a message box to the user
-		vscode.window.showInformationMessage('Hello World from SQLinter!');
-	});
+    // Добавляем в подписки для очистки при деактивации
+    context.subscriptions.push(saveDisposable);
 
-	context.subscriptions.push(disposable);
+    // Ваша существующая команда
+    const disposable = vscode.commands.registerCommand('sqlinter.helloWorld', () => {
+        vscode.window.showInformationMessage('Hello World from SQLinter!');
+    });
+    context.subscriptions.push(disposable);
 }
 
-// This method is called when your extension is deactivated
+function runPythonScript(filePath: string) {
+    // Путь к вашему Python-скрипту (может быть абсолютным или относительным)
+    const pythonScriptPath = '/path/to/your/script.py';  // ЗАМЕНИТЕ на реальный путь
+    
+    // Выполняем Python-скрипт
+    exec(`python ${pythonScriptPath} "${filePath}"`, (error, stdout, stderr) => {
+        if (error) {
+            vscode.window.showErrorMessage(`Ошибка выполнения Python-скрипта: ${error.message}`);
+            return;
+        }
+        if (stderr) {
+            vscode.window.showWarningMessage(`Предупреждение: ${stderr}`);
+        }
+        // Выводим результат в output канал
+        const outputChannel = vscode.window.createOutputChannel('Python Script Output');
+        outputChannel.appendLine(stdout);
+        outputChannel.show();
+    });
+}
+
 export function deactivate() {}
