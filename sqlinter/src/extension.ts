@@ -24,7 +24,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 function runPythonScript(filePath: string) {
     // Путь к вашему Python-скрипту (может быть абсолютным или относительным)
-    const pythonScriptPath = '/path/to/your/script.py';  // ЗАМЕНИТЕ на реальный путь
+    const pythonScriptPath = 'sql_extractor.py';  // ЗАМЕНИТЕ на реальный путь
     
     // Выполняем Python-скрипт
     exec(`python ${pythonScriptPath} "${filePath}"`, (error, stdout, stderr) => {
