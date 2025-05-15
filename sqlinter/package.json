@@ -1,15 +1,15 @@
 {
   "name": "sqlinter",
-  "displayName": "SQLinter",
+  "displayName": "sqlinter",
   "description": "",
   "version": "0.0.1",
   "engines": {
-    "vscode": "^1.100.1"
+    "vscode": "^1.100.0"
   },
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": ["onStartupFinished"],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [

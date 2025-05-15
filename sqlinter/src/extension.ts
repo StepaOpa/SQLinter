@@ -1,13 +1,24 @@
 import * as vscode from 'vscode';
 import { exec } from 'child_process';
+import { promisify } from 'util';
+import * as path from 'path';
+
+
+const execAsync = promisify(exec);
+
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('Congratulations, your extension "sqlinter" is now active!');
 
-    // Регистрируем обработчик для сохранения файла
-    const saveDisposable = vscode.workspace.onDidSaveTextDocument((document) => {
-        // Проверяем, нужно ли обрабатывать этот файл (например, по расширению)
-        if (document.fileName.endsWith('.py')) {  // Можете изменить условие
+	//обработка сохранения
+    const saveDisposable = vscode.workspace.onDidSaveTextDocument(async (document) => {
+        if (document.languageId === 'python' || document.fileName.endsWith('.py')) {
+			try {
+            await runPythonScript(document.fileName);
+        } catch (error) {
+            vscode.window.showErrorMessage(`Ошибка: ${error}`);
+        }
+	        vscode.window.showInformationMessage('Сохранение обработано');
             runPythonScript(document.fileName);
         }
     });
@@ -15,31 +26,29 @@ export function activate(context: vscode.ExtensionContext) {
     // Добавляем в подписки для очистки при деактивации
     context.subscriptions.push(saveDisposable);
 
-    // Ваша существующая команда
+    //базовый хеллоу ворлд
     const disposable = vscode.commands.registerCommand('sqlinter.helloWorld', () => {
+		console.log('Hello World from SQLinter!');
         vscode.window.showInformationMessage('Hello World from SQLinter!');
     });
     context.subscriptions.push(disposable);
 }
 
-function runPythonScript(filePath: string) {
-    // Путь к вашему Python-скрипту (может быть абсолютным или относительным)
-    const pythonScriptPath = 'sql_extractor.py';  // ЗАМЕНИТЕ на реальный путь
+async function runPythonScript(filePath: string) {
+    // Получаем путь к директории, где лежит extension.ts
+    const extensionDir = path.dirname(__dirname);
     
-    // Выполняем Python-скрипт
-    exec(`python ${pythonScriptPath} "${filePath}"`, (error, stdout, stderr) => {
-        if (error) {
-            vscode.window.showErrorMessage(`Ошибка выполнения Python-скрипта: ${error.message}`);
-            return;
-        }
-        if (stderr) {
-            vscode.window.showWarningMessage(`Предупреждение: ${stderr}`);
-        }
-        // Выводим результат в output канал
-        const outputChannel = vscode.window.createOutputChannel('Python Script Output');
-        outputChannel.appendLine(stdout);
-        outputChannel.show();
-    });
+    // Формируем путь к Python-скрипту в той же директории
+    const pythonScriptPath = path.join(extensionDir, 'src/sql_extractor.py');
+    
+    const command = `python "${pythonScriptPath}" "${filePath}"`;
+    
+    const { stdout, stderr } = await execAsync(command);
+    
+    const outputChannel = vscode.window.createOutputChannel('Python Output');
+    outputChannel.appendLine(stdout);
+    if (stderr) outputChannel.appendLine(`Ошибки: ${stderr}`);
+    outputChannel.show();
 }
 
 export function deactivate() {}
