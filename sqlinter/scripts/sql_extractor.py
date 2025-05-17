@@ -1,4 +1,5 @@
 import re
+import sys
 
 
 def editing(llist: list[str]):
@@ -161,7 +162,7 @@ def extractor(lines):
                         skobka1 = line.index('(')+1
                         skobka2 = line.index(')')
                         var = line[skobka1: skobka2]
-                        for num,call in enumerate(parsed):
+                        for num, call in enumerate(parsed):
                             if call[0] == var:
                                 sql = call[1]
                                 possible_sqls.append(sql)
@@ -169,9 +170,9 @@ def extractor(lines):
                                 parsed.pop(num)
                     else:
                         skobka1 = line.index('(')+1
-                        zapytaya = line.index(',').replace(' ','')
+                        zapytaya = line.index(',').replace(' ', '')
                         var = line[skobka1: zapytaya]
-                        for num,call in enumerate(parsed):
+                        for num, call in enumerate(parsed):
                             if call[0] == var:
                                 sql = call[1]
                                 possible_sqls.append(sql)
@@ -216,8 +217,14 @@ def extractor(lines):
 
 
 def main():
-    with open('testpy.py') as f:
+    file_path = sys.argv[1]
+    with open(file_path) as f:
         lines = editing(f.readlines())
         possible_sqls = extractor(lines)
         # parsed = fill_parsed(lines)
+        print(possible_sqls)
     return possible_sqls
+
+
+if __name__ == '__main__':
+    main()
