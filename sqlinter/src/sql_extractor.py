@@ -216,7 +216,7 @@ def extractor(lines):
 
 
 def main():
-    with open('test2.py') as f:
+    with open('test.py') as f:
         lines = editing(f.readlines())
         possible_sqls = extractor(lines)
         parsed = fill_parsed(lines)
