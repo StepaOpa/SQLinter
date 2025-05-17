@@ -20,7 +20,7 @@ def fill_parsed(lines: list):
             # делает так, чтобы между var, = и value не было пробелов
             linefake = re.sub(r'\s*=\s*', '=', linefake)
             equal = linefake.index('=')
-            var = linefake[:equal]
+            var = linefake[:equal].replace(' ','')
             if '"""' in linefake:
                 qcount = linefake.count('"""')
                 if qcount == 2:
