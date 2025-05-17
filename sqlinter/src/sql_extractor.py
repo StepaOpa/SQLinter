@@ -11,7 +11,7 @@ def editing(llist: list[str]):
 
 
 def fill_parsed(lines: list):
-    parsed = {}
+    parsed = []
     stack = []
     value = ''
     for line in lines:
@@ -20,14 +20,14 @@ def fill_parsed(lines: list):
             # делает так, чтобы между var, = и value не было пробелов
             linefake = re.sub(r'\s*=\s*', '=', linefake)
             equal = linefake.index('=')
-            var = linefake[:equal].replace(' ','')
+            var = linefake[:equal].replace(' ', '')
             if '"""' in linefake:
                 qcount = linefake.count('"""')
                 if qcount == 2:
                     woquote = linefake.replace('"""', "", 1)
                     woquoteindex = woquote.index('"""')+6
                     value += linefake[equal+1:woquoteindex]
-                    parsed[var] = value
+                    parsed.append((var, value))
                     value = ''
                 else:
                     stack = ['"""']
@@ -42,7 +42,7 @@ def fill_parsed(lines: list):
                     woquote = linefake.replace("'''", "", 1)
                     woquoteindex = woquote.index("'''")+6
                     value += linefake[equal+1:woquoteindex]
-                    parsed[var] = value
+                    parsed.append((var, value))
                     value = ''
                 else:
                     stack = ["'''"]
@@ -55,14 +55,14 @@ def fill_parsed(lines: list):
                 woquote = linefake.replace('"', "", 1)
                 woquoteindex = woquote.index('"')+2
                 value += linefake[equal+1:woquoteindex]
-                parsed[var] = value
+                parsed.append((var, value))
                 value = ''
 
             elif "'" in linefake:
                 woquote = linefake.replace("'", "", 1)
                 woquoteindex = woquote.index("'")+2
                 value += linefake[equal+1:woquoteindex]
-                parsed[var] = value
+                parsed.append((var, value))
                 value = ''
 
         else:
@@ -73,12 +73,12 @@ def fill_parsed(lines: list):
                             stack = []
                             woquoteindex = linefake.index('"""')+3
                             value += linefake[:woquoteindex]
-                            parsed[var] = value
+                            parsed.append((var, value))
                             value = ''
                         else:
                             stack = []
                             value += linefake
-                            parsed[var] = value
+                            parsed.append((var, value))
                             value = ''
                     else:
                         value += linefake
@@ -89,12 +89,12 @@ def fill_parsed(lines: list):
                             stack = []
                             woquoteindex = linefake.index("'''")+3
                             value += linefake[:woquoteindex]
-                            parsed[var] = value
+                            parsed.append((var, value))
                             value = ''
                         else:
                             stack = []
                             value += linefake
-                            parsed[var] = value
+                            parsed.append((var, value))
                             value = ''
                     else:
                         value += ' '+linefake
@@ -161,22 +161,22 @@ def extractor(lines):
                         skobka1 = line.index('(')+1
                         skobka2 = line.index(')')
                         var = line[skobka1: skobka2]
-                        sql = parsed[var]
-                        try:
-                            sql = parsed[var]
-                            possible_sqls.append(sql)
-                        except KeyError:
-                            print(f'Ключ "{var}" не найден.')
-                        sql = ''
+                        for num,call in enumerate(parsed):
+                            if call[0] == var:
+                                sql = call[1]
+                                possible_sqls.append(sql)
+                                sql = ''
+                                parsed.pop(num)
                     else:
                         skobka1 = line.index('(')+1
-                        zapytaya = line.index(',')
+                        zapytaya = line.index(',').replace(' ','')
                         var = line[skobka1: zapytaya]
-                        try:
-                            sql = parsed[var]
-                            possible_sqls.append(sql)
-                        except KeyError:
-                            print(f'Ключ "{var}" не найден.')
+                        for num,call in enumerate(parsed):
+                            if call[0] == var:
+                                sql = call[1]
+                                possible_sqls.append(sql)
+                                sql = ''
+                                parsed.pop(num)
                         sql = ''
             else:
                 if stack:
@@ -216,13 +216,8 @@ def extractor(lines):
 
 
 def main():
-    with open('test.py') as f:
+    with open('testpy.py') as f:
         lines = editing(f.readlines())
         possible_sqls = extractor(lines)
-        parsed = fill_parsed(lines)
+        # parsed = fill_parsed(lines)
     return possible_sqls
-
-
-spisok = main()
-for i in spisok:
-    print(i)
