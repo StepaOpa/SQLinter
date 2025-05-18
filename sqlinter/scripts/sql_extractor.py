@@ -1,5 +1,4 @@
 import re
-import sys
 import json
 
 
@@ -7,7 +6,8 @@ def editing(llist: list[str]):
     edited = []
     for i in range(0, len(llist)):
         stripped = llist[i]
-        if stripped and '#' not in stripped and not any(j in 'Ѓ°ґ±ЊЂѓ' for j in llist[i]):
+        # stripped and '#' not in stripped and - убрал для того, чтобы можно было правильно вычислять позицию запроса.
+        if not any(j in 'Ѓ°ґ±ЊЂѓ' for j in llist[i]):
             edited.append(stripped)
     return edited
 
@@ -15,21 +15,36 @@ def editing(llist: list[str]):
 def fill_parsed(lines: list):
     parsed = []
     stack = []
+    # Создаём переменную, где будем хранить весь текст, то есть, код. Потом из него может будет узнать длину всего текста и в дальнейшем позицию запроса.
+    symbols = ''
     value = ''
     for line in lines:
         linefake = line
+
         if ('=' in linefake) and (not stack) and not any(ttype in linefake for ttype in ['.execute(', '.executemany(', '.fetch(', '.read_sql(', '.copy_expert(']):
             # делает так, чтобы между var, = и value не было пробелов
             linefake = re.sub(r'\s*=\s*', '=', linefake)
             equal = linefake.index('=')
             var = linefake[:equal].replace(' ', '')
+            start = 0
             if '"""' in linefake:
+
+                start = len(symbols) + \
+                    line.index('"""')  # определяем начало запроса
+
                 qcount = linefake.count('"""')
                 if qcount == 2:
+
+                    secondq = line.replace(
+                        '"""', "", 1)  # строка без первых кавычек
+                    end = len(symbols) + secondq.index('"""') + \
+                        5  # считаем конец запроса
+
                     woquote = linefake.replace('"""', "", 1)
                     woquoteindex = woquote.index('"""')+6
                     value += linefake[equal+1:woquoteindex]
-                    parsed.append((var, value))
+                    parsed.append(
+                        (var, value, {'text': value, 'start': start, 'end': end}))
                     value = ''
                 else:
                     stack = ['"""']
@@ -39,12 +54,22 @@ def fill_parsed(lines: list):
                         value += linefake[equal+2:]
 
             elif "'''" in linefake:
+                start = len(symbols) + \
+                    line.index("'''")  # определяем начало запроса
+
                 qcount = linefake.count("'''")
                 if qcount == 2:
+
+                    secondq = line.replace(
+                        "'''", "", 1)  # строка без первых кавычек
+                    end = len(symbols) + secondq.index("'''") + \
+                        5  # считаем конец запроса
+
                     woquote = linefake.replace("'''", "", 1)
                     woquoteindex = woquote.index("'''")+6
                     value += linefake[equal+1:woquoteindex]
-                    parsed.append((var, value))
+                    parsed.append(
+                        (var, value, {'text': value, 'start': start, 'end': end}))
                     value = ''
                 else:
                     stack = ["'''"]
@@ -54,17 +79,27 @@ def fill_parsed(lines: list):
                         value += linefake[equal+2:]
 
             elif '"' in linefake:
+                start = len(symbols) + line.index('"')
+                secondq = line.replace('"', "", 1)
+                end = len(symbols) + secondq.index('"')+1
+
                 woquote = linefake.replace('"', "", 1)
                 woquoteindex = woquote.index('"')+2
                 value += linefake[equal+1:woquoteindex]
-                parsed.append((var, value))
+                parsed.append(
+                    (var, value, {'text': value, 'start': start, 'end': end}))
                 value = ''
 
             elif "'" in linefake:
+                start = len(symbols) + line.index("'")
+                secondq = line.replace("'", "", 1)
+                end = len(symbols) + secondq.index("'")+1
+
                 woquote = linefake.replace("'", "", 1)
                 woquoteindex = woquote.index("'")+2
                 value += linefake[equal+1:woquoteindex]
-                parsed.append((var, value))
+                parsed.append(
+                    (var, value, {'text': value, 'start': start, 'end': end}))
                 value = ''
 
         else:
@@ -73,14 +108,22 @@ def fill_parsed(lines: list):
                     if '"""' in linefake:
                         if linefake != '"""':
                             stack = []
+
+                            end = len(symbols) + line.index('"""')+2
+
                             woquoteindex = linefake.index('"""')+3
                             value += linefake[:woquoteindex]
-                            parsed.append((var, value))
+                            parsed.append(
+                                (var, value, {'text': value, 'start': start, 'end': end}))
                             value = ''
                         else:
+
+                            end = len(symbols) + 3
+
                             stack = []
                             value += linefake
-                            parsed.append((var, value))
+                            parsed.append(
+                                (var, value, {'text': value, 'start': start, 'end': end}))
                             value = ''
                     else:
                         value += linefake
@@ -88,18 +131,27 @@ def fill_parsed(lines: list):
                 elif "'''" in stack:
                     if "'''" in linefake:
                         if linefake != "'''":
+
+                            end = len(symbols) + line.index("'''")+2
+
                             stack = []
                             woquoteindex = linefake.index("'''")+3
                             value += linefake[:woquoteindex]
-                            parsed.append((var, value))
+                            parsed.append(
+                                (var, value, {'text': value, 'start': start, 'end': end}))
                             value = ''
                         else:
+
+                            end = len(symbols) + 3
+
                             stack = []
                             value += linefake
-                            parsed.append((var, value))
+                            parsed.append(
+                                (var, value, {'text': value, 'start': start, 'end': end}))
                             value = ''
                     else:
                         value += ' '+linefake
+        symbols += line + '  '  # добавляем всю строку кода и перенос '\n'
 
     return parsed
 
@@ -109,18 +161,27 @@ def extractor(lines):
     possible_sqls = []
     stack = []
     sql = ''
+    symbols = ''
     for ttype in ['.execute(', '.executemany(', '.fetch(', '.read_sql(', '.copy_expert(']:
         for line in lines:
             if ttype in line:
+                start = 0
                 if '"""' in line and (line.index('(')+1 == line.index('"""')):
+
+                    start = len(symbols) + line.index('"""')
+
                     quotes = line.count('"""')
                     if quotes == 2:
+                        secondq = line.replace('"""', '', 1)
+                        end = len(symbols) + secondq.index('"""')+5
+
                         firstquote = line.index('"""')
                         woquote = line.replace('"""', '', 1)
                         secondquote = woquote.index('"""')+6
 
                         sql = line[firstquote:secondquote]
-                        possible_sqls.append(sql)
+                        possible_sqls.append(
+                            {'text': sql, 'start': start, 'end': end})
                         sql = ''
                     else:
                         stack = ['"""']
@@ -128,14 +189,22 @@ def extractor(lines):
                         sql = line[firstquote:]
 
                 elif "'''" in line and (line.index('(')+1 == line.index("'''")):
+
+                    start = len(symbols) + line.index("'''")
+
                     quotes = line.count("'''")
                     if quotes == 2:
+
+                        secondq = line.replace("'''", '', 1)
+                        end = len(symbols) + secondq.index("'''")+5
+
                         firstquote = line.index("'''")
                         woquote = line.replace("'''", '', 1)
                         secondquote = woquote.index("'''")+6
 
                         sql = line[firstquote:secondquote]
-                        possible_sqls.append(sql)
+                        possible_sqls.append(
+                            {'text': sql, 'start': start, 'end': end})
                         sql = ''
                     else:
                         stack = ["'''"]
@@ -143,19 +212,29 @@ def extractor(lines):
                         sql = line[firstquote:]
 
                 elif '"' in line and (line.index('(')+1 == line.index('"')):
+                    start = len(symbols) + line.index('"')
+                    secondq = line.replace('"', '', 1)
+                    end = len(symbols) + secondq.index('"') + 1
+
                     firstquote = line.index('"')
                     woquote = line.replace('"', '', 1)
                     secondquote = woquote.index('"')+2
                     sql = line[firstquote:secondquote]
-                    possible_sqls.append(sql)
+                    possible_sqls.append(
+                        {'text': sql, 'start': start, 'end': end})
                     sql = ''
 
                 elif "'" in line and (line.index('(')+1 == line.index("'")):
+                    start = len(symbols) + line.index("'")
+                    secondq = line.replace("'", '', 1)
+                    end = len(symbols) + secondq.index("'") + 1
+
                     firstquote = line.index("'")
                     woquote = line.replace("'", '', 1)
                     secondquote = woquote.index("'")+2
                     sql = line[firstquote:secondquote]
-                    possible_sqls.append(sql)
+                    possible_sqls.append(
+                        {'text': sql, 'start': start, 'end': end})
                     sql = ''
 
                 elif not any(quote in line[line.index('(')+1] for quote in ['"""', "'''", '"', "'"]):
@@ -165,9 +244,7 @@ def extractor(lines):
                         var = line[skobka1: skobka2]
                         for num, call in enumerate(parsed):
                             if call[0] == var:
-                                sql = call[1]
-                                possible_sqls.append(sql)
-                                sql = ''
+                                possible_sqls.append(call[2])
                                 parsed.pop(num)
                     else:
                         skobka1 = line.index('(')+1
@@ -175,9 +252,7 @@ def extractor(lines):
                         var = line[skobka1: zapytaya]
                         for num, call in enumerate(parsed):
                             if call[0] == var:
-                                sql = call[1]
-                                possible_sqls.append(sql)
-                                sql = ''
+                                possible_sqls.append(call[2])
                                 parsed.pop(num)
                         sql = ''
             else:
@@ -185,15 +260,22 @@ def extractor(lines):
                     if '"""' in stack:
                         if '"""' in line:
                             if '"""' != line:
+
+                                end = len(symbols) + line.index('"""')+2
+
                                 stack = []
                                 quote = line.index('"""')+3
                                 sql += line[:quote]
-                                possible_sqls.append(sql)
+                                possible_sqls.append(
+                                    {'text': sql, 'start': start, 'end': end})
                                 sql = ''
                             else:
+                                end = len(symbols) + line.index('"""')+2
+
                                 stack = []
                                 sql += line
-                                possible_sqls.append(sql)
+                                possible_sqls.append(
+                                    {'text': sql, 'start': start, 'end': end})
                                 sql = ''
                         else:
                             sql += line
@@ -201,25 +283,30 @@ def extractor(lines):
                     elif "'''" in stack:
                         if "'''" in line:
                             if "'''" != line:
+                                end = len(symbols) + line.index("'''")+2
+
                                 stack = []
                                 quote = line.index("'''")+3
                                 sql += line[:quote]
-                                possible_sqls.append(sql)
+                                possible_sqls.append(
+                                    {'text': sql, 'start': start, 'end': end})
                                 sql = ''
                             else:
+                                end = len(symbols) + line.index("'''")+2
+
                                 stack = []
                                 sql += line
-                                possible_sqls.append(sql)
+                                possible_sqls.append(
+                                    {'text': sql, 'start': start, 'end': end})
                                 sql = ''
                         else:
                             sql += line
-
+            symbols += line + '  '
     return possible_sqls
 
 
 def main():
-    file_path = sys.argv[1]
-    with open(file_path) as f:
+    with open('testpy.py') as f:
         lines = editing(f.readlines())
         possible_sqls = extractor(lines)
         # parsed = fill_parsed(lines)
