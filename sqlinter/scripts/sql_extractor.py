@@ -1,5 +1,6 @@
 import re
 import sys
+import json
 
 
 def editing(llist: list[str]):
@@ -222,9 +223,19 @@ def main():
         lines = editing(f.readlines())
         possible_sqls = extractor(lines)
         # parsed = fill_parsed(lines)
-        print(possible_sqls)
+        # print(possible_sqls)
     return possible_sqls
 
 
 if __name__ == '__main__':
-    main()
+    possible_sqls = main()
+    test_sql_list = [
+        {
+            "text": "SELECT * FROM users",
+            "line": 3,
+            "start": 20,
+            "end": 30
+        }
+    ]
+    print(json.dumps(test_sql_list, ensure_ascii=False))
+    # print(json.dumps(possible_sqls, ensure_ascii=False))

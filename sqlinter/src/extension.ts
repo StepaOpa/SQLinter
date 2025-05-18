@@ -19,7 +19,8 @@ const saveDisposable = vscode.workspace.onDidSaveTextDocument(async (document) =
     
     if (document.languageId === 'python' || document.fileName.endsWith('.py')) {
         try {
-            await runPythonScript(extensionRootPath, absoluteFilePath);
+            const sqlQueries = await runPythonScript(extensionRootPath, absoluteFilePath);
+            await highlightSqlQueries(document, sqlQueries);
             vscode.window.showInformationMessage(`Обработан файл: ${absoluteFilePath}`);
         } catch (error) {
             vscode.window.showErrorMessage(`Ошибка обработки ${absoluteFilePath}: ${error}`);
@@ -55,6 +56,69 @@ async function runPythonScript(rootPath: string, filePath: string) {
     outputChannel.appendLine(stdout);
     if (stderr) outputChannel.appendLine(`Ошибки: ${stderr}`);
     outputChannel.show();
+    try {
+        
+        // Парсим JSON
+        const result = JSON.parse(stdout);
+        console.log(result);
+        if (result.error) {
+            throw new Error(result.error);
+        }
+
+        // result теперь содержит массив SQL-запросов
+        return result as Array<{
+            text: string;
+            line: number;
+            start: number;
+            end: number;
+        }>;
+
+
+    } catch (error) {
+        vscode.window.showErrorMessage(`Ошибка парсинга SQL: ${error}`);
+        return [];
+    }
 }
 
+async function highlightSqlQueries(document: vscode.TextDocument, extractedQueries: any[]) {
+    const diagnosticCollection = vscode.languages.createDiagnosticCollection('sql-queries');
+    diagnosticCollection.clear();
+
+    try {
+        // 1. Запускаем Python-скрипт
+        const queries = extractedQueries;
+
+        // 2. Создаем декорации для подсветки
+        const decorations: vscode.DecorationOptions[] = [];
+        const decorationType = vscode.window.createTextEditorDecorationType({
+            backgroundColor: 'rgba(100, 200, 100, 0.2)',
+            border: '1px solid rgba(100, 200, 100, 0.7)',
+            borderRadius: '2px'
+        });
+
+        // 3. Преобразуем позиции
+        for (const query of queries) {
+            const startPos = document.positionAt(query.start);
+            const endPos = document.positionAt(query.end);
+            
+            decorations.push({
+                range: new vscode.Range(startPos, endPos),
+                hoverMessage: 'SQL запрос'
+            });
+        }
+
+        // 4. Применяем подсветку
+        const editor = vscode.window.activeTextEditor;
+        if (editor) {
+            editor.setDecorations(decorationType, decorations);
+        }
+
+    } catch (error) {
+        vscode.window.showErrorMessage(`Ошибка анализа SQL: ${error}`);
+    }
+}
+
+
+
 export function deactivate() {}
+
