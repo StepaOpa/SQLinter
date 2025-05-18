@@ -1,6 +1,6 @@
 import sqlite3
 
-syntax_test = 'sdfbjbv'
+syn             t                          ax                                       _test = 'sdfbjbv'
 connection = sqlite3.connect('mydatabase.db')
 cursor = connection.cursor()
 

@@ -5,12 +5,17 @@ import * as path from 'path';
 
 
 const execAsync = promisify(exec);
-
+let decorationType: vscode.TextEditorDecorationType;
 
 export function activate(context: vscode.ExtensionContext) {
     const extensionRootPath = context.extensionUri.fsPath;
     console.log('Congratulations, your extension "sqlinter" is now active!');
     console.log(extensionRootPath);
+        // Создаем тип декорации один раз
+    decorationType = vscode.window.createTextEditorDecorationType({
+        backgroundColor: 'rgba(100, 200, 100, 0.2)',
+        border: '1px solid rgba(100, 200, 100, 0.7)'
+    });
 
 	//обработка сохранения
 const saveDisposable = vscode.workspace.onDidSaveTextDocument(async (document) => {
@@ -81,6 +86,7 @@ async function runPythonScript(rootPath: string, filePath: string) {
 }
 
 async function highlightSqlQueries(document: vscode.TextDocument, extractedQueries: any[]) {
+    decorationType.dispose();
     const diagnosticCollection = vscode.languages.createDiagnosticCollection('sql-queries');
     diagnosticCollection.clear();
 
@@ -90,7 +96,7 @@ async function highlightSqlQueries(document: vscode.TextDocument, extractedQueri
 
         // 2. Создаем декорации для подсветки
         const decorations: vscode.DecorationOptions[] = [];
-        const decorationType = vscode.window.createTextEditorDecorationType({
+        decorationType = vscode.window.createTextEditorDecorationType({
             backgroundColor: 'rgba(100, 200, 100, 0.2)',
             border: '1px solid rgba(100, 200, 100, 0.7)',
             borderRadius: '2px'
