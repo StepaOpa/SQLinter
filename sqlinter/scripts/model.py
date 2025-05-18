@@ -1,8 +1,9 @@
 import os
+import sys
 from openai import OpenAI
 import ast
 import json
-from typing import List, Union
+from typing import List, Union, Dict
 
 
 class GPTModel(OpenAI):
@@ -10,6 +11,7 @@ class GPTModel(OpenAI):
         self.api_key = api_key
         self.sqlquerries = sqlquerries
         self._parsed_queries = None
+        self.query_data = []
         if not self.api_key:
             raise ValueError(
                 "Please set the OPENAI_API_KEY environment variable")
@@ -47,31 +49,51 @@ class GPTModel(OpenAI):
             return '\n'.join(lines[1:-1])
         return gpt_output
 
-    def _parse_queries(self) -> Union[List, None]:
+    def _parse_queries(self) -> Union[List[Dict], None]:
         """Парсинг очищенного вывода в список Python"""
         try:
             raw_gpt_output = self._get_raw_gpt_output(self.sqlquerries)
             cleaned_output = self._clean_gpt_output(raw_gpt_output)
             self.parsed_queries = ast.literal_eval(cleaned_output)
-            return self.parsed_queries
+            for query, verdict, reason in self.parsed_queries:
+                self.query_data.append({
+                    "query": query,
+                    "verdict": verdict,
+                    "reason": reason,
+                    "start": None,
+                    "end": None
+                })
+            return self.query_data
+
         except (SyntaxError, ValueError, IndexError) as e:
             print(f"Ошибка парсинга: {e}")
             return None
 
     @property
-    def queries(self) -> str:
+    def queries_json(self) -> str:
         """
         Геттер для получения отформатированного JSON из проанализированных SQL-запросов.
 
         Returns:
             str: Отформатированный JSON для проанализированных SQL-запросов.
         """
-        if not self._parsed_queries:
+        if not self.query_data:
             self._parse_queries()
 
-        if self.parsed_queries:
-            return json.dumps(self.parsed_queries, indent=2, ensure_ascii=False)
+        if self.query_data:
+            sys.stdout.reconfigure(encoding='utf-8')
+            return json.dumps(self.query_data, indent=2, ensure_ascii=False)
         return json.dumps([], indent=2)
+
+    @property
+    def queries(self) -> List[Dict]:
+        if not self.query_data:
+            self._parse_queries()
+
+        if self.query_data:
+            sys.stdout.reconfigure(encoding='utf-8')
+            return self.query_data
+        return self.query_data
 
 # test
 # if __name__ == "__main__":

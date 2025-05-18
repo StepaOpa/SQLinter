@@ -1,6 +1,6 @@
 import sqlite3
 
-syn             t                          ax                                       _test = 'sdfbjbv'
+syntax_test = 'sdfbjbv'
 connection = sqlite3.connect('mydatabase.db')
 cursor = connection.cursor()
 
@@ -67,7 +67,7 @@ query = """
 cursor.execute(query)
 
 query = f'''DELETE FROM "{table}" WHERE created_at < NOW() - INTERVAL '{days} days''''
-cursor.execute(query)
+cursor.execute(query) 
 
 connection.commit()
 connection.close()

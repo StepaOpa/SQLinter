@@ -1,5 +1,7 @@
 import re
 import json
+import sys
+from typing import Dict, List
 
 
 def editing(llist: list[str]):
@@ -305,24 +307,20 @@ def extractor(lines):
     return possible_sqls
 
 
-def main():
-    with open('testpy.py') as f:
+def main() -> List[Dict]:
+    file_path = sys.argv[1]
+    # with open('testpy.py', encoding='utf-8') as f:
+    with open(file_path, encoding='utf-8') as f:
         lines = editing(f.readlines())
         possible_sqls = extractor(lines)
         # parsed = fill_parsed(lines)
         # print(possible_sqls)
     return possible_sqls
+    # return json.dumps(possible_sqls, ensure_ascii=False)
 
 
 if __name__ == '__main__':
     possible_sqls = main()
-    test_sql_list = [
-        {
-            "text": "SELECT * FROM users",
-            "line": 3,
-            "start": 20,
-            "end": 30
-        }
-    ]
-    print(json.dumps(test_sql_list, ensure_ascii=False))
+    print(possible_sqls[0])
     # print(json.dumps(possible_sqls, ensure_ascii=False))
+#     # print(json.dumps(possible_sqls, ensure_ascii=False))
