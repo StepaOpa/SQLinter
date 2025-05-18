@@ -11,7 +11,7 @@ export function activate(context: vscode.ExtensionContext) {
     const extensionRootPath = context.extensionUri.fsPath;
     console.log('Congratulations, your extension "sqlinter" is now active!');
     console.log(extensionRootPath);
-        // Создаем тип декорации один раз
+
     decorationType = vscode.window.createTextEditorDecorationType({
         backgroundColor: 'rgba(100, 200, 100, 0.2)',
         border: '1px solid rgba(100, 200, 100, 0.7)'
