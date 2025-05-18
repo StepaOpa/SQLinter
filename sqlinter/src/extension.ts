@@ -112,7 +112,7 @@ async function highlightSqlQueries(document: vscode.TextDocument, extractedQueri
             
             decorations.push({
                 range: new vscode.Range(startPos, endPos),
-                hoverMessage: 'SQL запрос: ' + query.query
+                hoverMessage: createHoverContent(query)
             });
         });
 
@@ -127,6 +127,15 @@ async function highlightSqlQueries(document: vscode.TextDocument, extractedQueri
     }
 }
 
+function createHoverContent(query: any): vscode.MarkdownString {
+    const md = new vscode.MarkdownString();
+    // Детали анализа
+    md.appendMarkdown(`**SQL-запрос**: ${query.query}\n`);
+    md.appendMarkdown('### Детали:\n');
+    md.appendMarkdown(`- **Тип**: ${(query.verdict)}\n`);
+    md.appendMarkdown(`- **Проблема:**: ${query.reason || 'Нет критических проблем'}\n`);
+    return md;
+}
 
 
 export function deactivate() {}

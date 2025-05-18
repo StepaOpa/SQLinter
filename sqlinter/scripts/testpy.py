@@ -1,8 +1,6 @@
-import sqlite3
+a = 1
+cursor.execute('SELECT * FROM users')  # +14
 
-syntax_test = 'sdfbjbv'
-connection = sqlite3.connect('mydatabase.db')
-cursor = connection.cursor()
 
 sql = '''
 sdfsdfhjkgjhgsd
@@ -14,7 +12,7 @@ Create124124
 '''
 
 cursor.execute(sql)
-cursor.execute('SELECT * FROM users')
+
 
 'adsfsadfsdf'
 '''lets* go users'''
@@ -32,10 +30,10 @@ age INTEGER
 
 cursor.execute(sql2)
 
-query = "SELECT id, name, email FROM users WHERE status = 'active'"
+
 cursor.execute(query)
 
-query = f'SELECT * FROM users WHERE name LIKE \'%{name_filter}%\''
+query = 'SELECT * FROM users WHERE name LIKE'
 cursor.execute(query)
 
 query = '''

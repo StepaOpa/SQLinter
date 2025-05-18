@@ -2,6 +2,7 @@ import model
 import sql_extractor
 import os
 import json
+import sys
 
 api_key = os.getenv("OPENAI_API_KEY")
 
@@ -9,7 +10,6 @@ api_key = os.getenv("OPENAI_API_KEY")
 def main():
     original_sqls = sql_extractor.main()
     sqlquerries = [query['text'] for query in sql_extractor.main()]
-    # print(sqlquerries[0])
     gpt = model.GPTModel(api_key=api_key, sqlquerries=sqlquerries)
     gpt_response = gpt.queries
     for gpt_item, orig_query in zip(gpt_response, original_sqls):
