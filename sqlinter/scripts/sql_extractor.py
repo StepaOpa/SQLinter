@@ -81,13 +81,23 @@ def fill_parsed(lines: list):
                 value = ''
 
             elif "'" in linefake:
-                start = len(symbols) + line.index("'") 
-                secondq = line.replace("'", "", 1)
-                end = len(symbols) + secondq.index("'")+1
+                start = len(symbols) + line.index("'")
+                end = 0
+                value = ''
+                if line.count("'")>2:
+                    secondq = line.replace("'", "", line.count("'")-1)
+                    end = len(symbols) + secondq.index("'") + line.count("'")
 
-                woquote = linefake.replace("'", "", 1)
-                woquoteindex = woquote.index("'")+2
-                value += linefake[equal+1:woquoteindex]
+                    woquote = linefake.replace("'", "", line.count("'")-1)
+                    woquoteindex = woquote.index("'")+line.count("'")
+                    value += linefake[equal+1:woquoteindex]
+                else:
+                    secondq = line.replace("'", "", 1)
+                    end = len(symbols) + secondq.index("'")
+
+                    woquote = linefake.replace("'", "", 1)
+                    woquoteindex = woquote.index("'")+2
+                    value += linefake[equal+1:woquoteindex]
                 parsed.append((var, value, {'text':value, 'start':start, 'end':end}))
                 value = ''
 
