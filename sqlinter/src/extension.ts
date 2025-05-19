@@ -16,15 +16,77 @@ export function activate(context: vscode.ExtensionContext) {
         backgroundColor: 'rgba(100, 200, 100, 0.2)',
         border: '1px solid rgba(100, 200, 100, 0.7)'
     });
+    //проверка наличия API ключа
+    const config = vscode.workspace.getConfiguration('sqlinter');
+    if (!config.get('openAiApiKey')) {
+        vscode.window.showInformationMessage(
+            'Для работы SQLinter требуется OpenAI API ключ. Запустите команду "SQLinter: Set API Key"',
+            'Ввести ключ'
+        ).then(selection => {
+            if (selection) {
+                vscode.commands.executeCommand('sqlinter.setApiKey');
+            }
+        });
+    }
+
+    //Получаем API ключ
+    async function getOpenAIApiKey() {
+        const config = vscode.workspace.getConfiguration('sqlinter');
+        const apiKey = config.get<string>('openAiApiKey');
+        console.log(apiKey);
+
+    if (!apiKey) {
+        const action = await vscode.window.showErrorMessage(
+            'OpenAI API ключ не найден', 
+            'Ввести ключ'
+        );
+        
+        if (action === 'Ввести ключ') {
+            await vscode.commands.executeCommand('sqlinter.setApiKey');
+        }
+        return;
+    }
+    return apiKey;
+}
+
+    // Команда для установки API ключа
+    const setApiKeyCommand = vscode.commands.registerCommand('sqlinter.setApiKey', async () => {
+        const apiKey = await vscode.window.showInputBox({
+            prompt: 'Введите ваш OpenAI API ключ',
+            password: true, // Скрываем ввод
+            ignoreFocusOut: true
+        });
+
+        if (apiKey) {
+            // Сохраняем в глобальных настройках VS Code
+            await vscode.workspace.getConfiguration('sqlinter').update(
+                'openAiApiKey',
+                apiKey,
+                vscode.ConfigurationTarget.Global
+            );
+            vscode.window.showInformationMessage('API ключ успешно сохранён!')
+            console.log(apiKey);
+        }
+    });
+
+    const clearApiKeyCommand = vscode.commands.registerCommand('sqlinter.clearApiKey', async () => {
+        await vscode.workspace.getConfiguration('sqlinter').update(
+            'openAiApiKey',
+            undefined,
+            vscode.ConfigurationTarget.Global
+        );
+        vscode.window.showInformationMessage('API ключ успешно удалён!');
+    });
 
 	//обработка сохранения
 const saveDisposable = vscode.workspace.onDidSaveTextDocument(async (document) => {
     const absoluteFilePath = document.fileName; //абсолютный путь к файлу
+    const apiKey = await getOpenAIApiKey();
     console.log(`Обработан файл: ${absoluteFilePath}`);
     
     if (document.languageId === 'python' || document.fileName.endsWith('.py')) {
         try {
-            const sqlQueries = await runPythonScript(extensionRootPath, absoluteFilePath);
+            const sqlQueries = await runPythonScript(extensionRootPath, absoluteFilePath, apiKey);
             console.log(sqlQueries);
             await highlightSqlQueries(document, sqlQueries);
             vscode.window.showInformationMessage(`Обработан файл: ${absoluteFilePath}`);
@@ -45,14 +107,14 @@ const saveDisposable = vscode.workspace.onDidSaveTextDocument(async (document) =
     context.subscriptions.push(disposable);
 }
 
-async function runPythonScript(rootPath: string, filePath: string) {
+async function runPythonScript(rootPath: string, filePath: string, apiKey?: string) {
     // Получаем путь к директории с расширением
     const extensionDir = rootPath;
     
     // Формируем путь к Python-скрипту в той же директории
     const pythonScriptPath = path.join(extensionDir, 'scripts/main.py'); 
     console.log(`запущен скрипт: ${pythonScriptPath}`);
-    const command = `python "${pythonScriptPath}" "${filePath}"`;
+    const command = `python "${pythonScriptPath}" "${filePath}" ${apiKey ? `"${apiKey}"` : ''}`;
     
     const { stdout, stderr } = await execAsync(command, {encoding: 'utf-8'});
     

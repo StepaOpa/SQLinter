@@ -87,6 +87,18 @@ class GPTModel(OpenAI):
 
     @property
     def queries(self) -> List[Dict]:
+        """
+        Геттер для получения проанализированных SQL-запросов.
+
+        Returns:
+            List[Dict]: Список словарей с информацией о запросах:
+                {
+                    'query': str,     # Текст запроса
+                    'verdict': str,    # Вердикт
+                    'reason': str      # Причина, почему запрос неправильный
+                }
+        """
+
         if not self.query_data:
             self._parse_queries()
 

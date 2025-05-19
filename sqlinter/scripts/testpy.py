@@ -17,7 +17,7 @@ cursor.execute(sql)
 'adsfsadfsdf'
 '''lets* go users'''
 
-cursor.execute('seletc age form table')
+cursor.execute('seetcl age form table')
 
 cursor.execute('''
 CREATE TABLE IF NOT EXISTS Users (
@@ -31,11 +31,6 @@ age INTEGER
 cursor.execute(sql2)
 
 
-cursor.execute(query)
-
-query = 'SELECT * FROM users WHERE name LIKE'
-cursor.execute(query)
-
 query = '''
             SELECT o.id, o.date, u.name
             FROM orders o
@@ -43,7 +38,8 @@ query = '''
             WHERE o.date > NOW() - INTERVAL '%s days'
         ''' %
 cursor.execute(query)
-
+query = 'SELECT * FROM users WHERE name LIKE'
+cursor.execute(query)
 query = "INSERT INTO orders (user_id, items) VALUES (%s, '%s')" %
 cursor.execute(query)
 
@@ -59,14 +55,13 @@ query = """
             GROUP BY u.id, u.name
         )
         SELECT * FROM user_stats
-        WHERE order_count > 0
+   WHERE order_count > 0
         ORDER BY total_spent DESC
-    """
+"""
 cursor.execute(query)
 
-query = f'''DELETE FROM "{table}" WHERE created_at < NOW() - INTERVAL '{days} days''''
-cursor.execute(query) 
+query = f'''DELETE FROM "{table}" WHERE created_at < NOW() - INTERVAL '{days} days'''
+cursor.execute(query)
 
 connection.commit()
 connection.close()
-

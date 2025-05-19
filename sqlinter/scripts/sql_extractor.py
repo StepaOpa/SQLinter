@@ -163,7 +163,7 @@ def fill_parsed(lines: list):
                             value = ''
                     else:
                         value += ' '+linefake
-        symbols += line
+        symbols += line+'\n'
 
     return parsed
 
@@ -186,7 +186,7 @@ def extractor(lines):
                     quotes = line.count('"""')
                     if quotes == 2:
                         secondq = line.replace('"""', '', 1)
-                        end = len(symbols) + secondq.index('"""')+6
+                        end = len(symbols) + secondq.index('"""')+6+1
 
                         firstquote = line.index('"""')
                         woquote = line.replace('"""', '', 1)
@@ -210,7 +210,7 @@ def extractor(lines):
                     if quotes == 2:
 
                         secondq = line.replace("'''", '', 1)
-                        end = len(symbols) + secondq.index("'''")+6
+                        end = len(symbols) + secondq.index("'''")+6+1
 
                         firstquote = line.index("'''")
                         woquote = line.replace("'''", '', 1)
@@ -229,7 +229,7 @@ def extractor(lines):
                     start = len(symbols) + line.index('"') + \
                         (symbols.count('/n'))
                     secondq = line.replace('"', '', 1)
-                    end = len(symbols) + secondq.index('"') + 2
+                    end = len(symbols) + secondq.index('"') + 2+1
 
                     firstquote = line.index('"')
                     woquote = line.replace('"', '', 1)
@@ -243,7 +243,7 @@ def extractor(lines):
                     start = len(symbols) + line.index("'") + \
                         (symbols.count('/n'))
                     secondq = line.replace("'", '', 1)
-                    end = len(symbols) + secondq.index("'") + 2
+                    end = len(symbols) + secondq.index("'") + 2+1
 
                     firstquote = line.index("'")
                     woquote = line.replace("'", '', 1)
@@ -277,7 +277,7 @@ def extractor(lines):
                         if '"""' in line:
                             if '"""' != line:
 
-                                end = len(symbols) + line.index('"""')+3
+                                end = len(symbols) + line.index('"""')+3+1
 
                                 stack = []
                                 quote = line.index('"""')+3
@@ -286,7 +286,7 @@ def extractor(lines):
                                     {'text': sql, 'start': start, 'end': end})
                                 sql = ''
                             else:
-                                end = len(symbols) + line.index('"""')+3
+                                end = len(symbols) + line.index('"""')+3+1
 
                                 stack = []
                                 sql += line
@@ -299,7 +299,7 @@ def extractor(lines):
                     elif "'''" in stack:
                         if "'''" in line:
                             if "'''" != line:
-                                end = len(symbols) + line.index("'''")+3
+                                end = len(symbols) + line.index("'''")+3+1
 
                                 stack = []
                                 quote = line.index("'''")+3
@@ -308,7 +308,7 @@ def extractor(lines):
                                     {'text': sql, 'start': start, 'end': end})
                                 sql = ''
                             else:
-                                end = len(symbols) + line.index("'''")+3
+                                end = len(symbols) + line.index("'''")+3+1
 
                                 stack = []
                                 sql += line
@@ -317,7 +317,7 @@ def extractor(lines):
                                 sql = ''
                         else:
                             sql += line
-            symbols += line
+            symbols += line+'\n'
     return possible_sqls
 
 

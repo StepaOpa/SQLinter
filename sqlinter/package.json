@@ -1,6 +1,7 @@
 {
   "name": "sqlinter",
   "displayName": "sqlinter",
+  "publisher": "O1DreamTeam",
   "description": "",
   "version": "0.0.1",
   "engines": {
@@ -16,8 +17,29 @@
       {
         "command": "sqlinter.helloWorld",
         "title": "Hello World"
+      },
+      {
+        "command": "sqlinter.setApiKey",
+        "title": "Set OpenAI API Key",
+        "category": "SQLinter"
+    },
+    {
+        "command": "sqlinter.clearApiKey",
+        "title": "Clear OpenAI API Key",
+        "category": "SQLinter"
+    }
+    ],
+    "configuration": {
+    "title": "SQLinter",
+    "properties": {
+      "sqlinter.openAiApiKey": {
+        "type": "string",
+        "default": "",
+        "description": "OpenAI API Key for SQL query analysis",
+        "scope": "application"
       }
-    ]
+    }
+  }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

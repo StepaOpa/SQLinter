@@ -4,7 +4,8 @@ import os
 import json
 import sys
 
-api_key = os.getenv("OPENAI_API_KEY")
+# api_key = os.getenv("OPENAI_API_KEY")
+api_key = sys.argv[2]
 
 
 def main():
