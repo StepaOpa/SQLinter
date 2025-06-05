@@ -33,7 +33,7 @@ export function activate(context: vscode.ExtensionContext) {
     async function getOpenAIApiKey() {
         const config = vscode.workspace.getConfiguration('sqlinter');
         const apiKey = config.get<string>('openAiApiKey');
-        console.log(apiKey);
+        console.log(`ApiKey: ${apiKey}`);
 
     if (!apiKey) {
         const action = await vscode.window.showErrorMessage(

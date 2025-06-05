@@ -1,18 +1,14 @@
-# database.py - модуль работы с базой данных
 import psycopg2
 from typing import List, Dict, Any
 
 
 def execute_query(query: str) -> List[Dict[str, Any]]:
-    """Выполняет SQL-запрос и возвращает результат"""
     conn = psycopg2.connect("dbname=test user=postgres")
     cursor = conn.cursor()
     cursor.execute(query)
     results = cursor.fetchall()
     conn.close()
     return results
-
-# services.py - бизнес-логика
 
 
 class UserService:
