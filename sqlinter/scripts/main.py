@@ -5,12 +5,12 @@ import json
 import sys
 from SQLinterModel import SQLinterModel
 
-query_data = {
-    "id": int,
-    "query": str,
-    "verdict": str,
-    "reason": str,
-    "corrected": str,
+query_data_template = {
+    "id": 0,
+    "query": "",
+    "verdict": "",
+    "reason": "",
+    "correction": "",
     "start": None,
     "end": None
 }
@@ -21,55 +21,58 @@ class SQLQueryProcessor:
         self.api_key: str = api_key
         self.sqlinter_model: SQLinterModel = SQLinterModel()
         self.gpt: GPTModel = None
-        self.original_sqls: list = None
-        self.parsed_sql_queries: list = None
-        self.corrected_queries: list = None
-        self.gpt_response = None
+        self.original_queries: list = None
+        self.parsed_queries: list = None
         self.queries_data: list[dict] = []
         self.queries_count: int = None
+        print('initialized')
 
     def extract_queries(self):
         """Extract SQL queries using sql_extractor"""
-        self.original_sqls = sql_extractor.main()
-        self.parsed_sql_queries = [query['text']
-                                   for query in self.original_sqls]
-        self.queries_count = len(self.parsed_sql_queries)
-        self.generate_queries_data()
-        # Записываем SQL запросы в queries_data
-        for i, query in enumerate(self.parsed_sql_queries):
-            self.queries_data[i]['query'] = query
+        self.original_queries = sql_extractor.main()
+        print(self.original_queries)
+        self.parsed_queries = [query['text']
+                               for query in self.original_queries]
+        self.queries_count = len(self.parsed_queries)
+        self._generate_queries_data()
+        for i, item in enumerate(self.original_queries):
+            self.queries_data[i].update({
+                'query': item['text'],
+                "start": item['start'],
+                "end": item['end']
+            })
 
-    def generate_queries_data(self):
+    def _generate_queries_data(self):
         """Generate queries data dictionary"""
         for i in range(self.queries_count):
-            temp_query_data = query_data
+            temp_query_data = query_data_template.copy()
             temp_query_data['id'] = i
             self.queries_data.append(temp_query_data)
 
+    def process_with_gpt(self):
+        """Process SQL queries using GPT model"""
+        self.gpt = GPTModel(
+            self.api_key, self.parsed_queries, self.queries_data)
+        self.queries_data = self.gpt.get_queries
+
     def process_with_sqlinter(self):
         """Process SQL queries using SQLinter model"""
-        for sql_query in self.parsed_sql_queries:
-            corrected_query = self.sqlinter_model.predict(sql_query)
-            # TODO
-            # переписать код модели так чтоб она принимала queries_data и возвращала его заполненным
-
-    def merge_metadata(self):
-        """Merge original query metadata with GPT responses"""
-        for gpt_item, orig_query in self.gpt_response:
-            gpt_item.update({
-                'start': orig_query.get('start'),
-                'end': orig_query.get('end')
+        for i, query in enumerate(self.parsed_queries):
+            corrected_query = self.sqlinter_model.predict(query)
+            self.queries_data[i].update({
+                "correction": corrected_query,
             })
 
     def process(self):
         """Main processing pipeline"""
         self.extract_queries()
-        self.generate_queries_data()
-
-        return json.dumps(self.gpt_response, indent=2, ensure_ascii=False)
+        self.process_with_gpt()
+        self.process_with_sqlinter()
+        return json.dumps(self.queries_data, indent=2, ensure_ascii=False)
 
 
 def main():
+    file_path = os.path.abspath(sys.argv[1])
     api_key = sys.argv[2]
     processor = SQLQueryProcessor(api_key)
     print(processor.process())

@@ -7,11 +7,12 @@ from typing import List, Union, Dict
 
 
 class GPTModel(OpenAI):
-    def __init__(self, api_key, sqlquerries):
+    def __init__(self, api_key, sqlquerries, queries_data):
         self.api_key = api_key
         self.sqlquerries = sqlquerries
         self._parsed_queries = None
-        self.query_data = []
+        self.is_data_processed = False
+        self.queries_data = queries_data
         if not self.api_key:
             raise ValueError(
                 "Please set the OPENAI_API_KEY environment variable")
@@ -55,15 +56,14 @@ class GPTModel(OpenAI):
             raw_gpt_output = self._get_raw_gpt_output(self.sqlquerries)
             cleaned_output = self._clean_gpt_output(raw_gpt_output)
             self.parsed_queries = ast.literal_eval(cleaned_output)
-            for query, verdict, reason in self.parsed_queries:
-                self.query_data.append({
-                    "query": query,
-                    "verdict": verdict,
-                    "reason": reason,
-                    "start": None,
-                    "end": None
+            for i, item in enumerate(self.parsed_queries):
+                self.queries_data[i].update({
+                    "query": item[0],
+                    "verdict": item[1],
+                    "reason": item[2],
                 })
-            return self.query_data
+            self.is_data_processed = True
+            return self.queries_data
 
         except (SyntaxError, ValueError, IndexError) as e:
             print(f"Ошибка парсинга: {e}")
@@ -77,16 +77,16 @@ class GPTModel(OpenAI):
         Returns:
             str: Отформатированный JSON для проанализированных SQL-запросов.
         """
-        if not self.query_data:
+        if not self.queries_data:
             self._parse_queries()
 
-        if self.query_data:
+        if self.queries_data:
             sys.stdout.reconfigure(encoding='utf-8')
-            return json.dumps(self.query_data, indent=2, ensure_ascii=False)
+            return json.dumps(self.queries_data, indent=2, ensure_ascii=False)
         return json.dumps([], indent=2)
 
     @property
-    def queries(self) -> List[Dict]:
+    def get_queries(self) -> List[Dict]:
         """
         Геттер для получения проанализированных SQL-запросов.
 
@@ -96,18 +96,19 @@ class GPTModel(OpenAI):
                     'query': str,     # Текст запроса
                     'verdict': str,    # Вердикт
                     'reason': str      # Причина, почему запрос неправильный
+                    'corrected': ---
                     'start': int      # Начало позиции в исходном запросе
                     'end': int        # Конец позиции в исходном запросе
                 }
         """
 
-        if not self.query_data:
+        if not self.is_data_processed:
             self._parse_queries()
 
-        if self.query_data:
+        if self.is_data_processed:
             sys.stdout.reconfigure(encoding='utf-8')
-            return self.query_data
-        return self.query_data
+            return self.queries_data
+        return self.queries_data
 
 # test
 # if __name__ == "__main__":
