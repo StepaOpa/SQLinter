@@ -1,5 +1,4 @@
 from GPT_model import GPTModel
-import sql_extractor
 import os
 import json
 import sys
@@ -32,7 +31,8 @@ class SQLQueryProcessor:
 
     def extract_queries(self):
         """Extract SQL queries using sql_extractor"""
-        self.original_queries = self.sql_call_visitor.process_file(self.operating_file)
+        self.original_queries = self.sql_call_visitor.process_file(
+            self.operating_file)
         print(self.original_queries)
         self.parsed_queries = [query['text']
                                for query in self.original_queries]
