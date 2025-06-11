@@ -4,6 +4,7 @@ import os
 import json
 import sys
 from SQLinterModel import SQLinterModel
+from SQLCallVisitor import SQLCallVisitor
 
 query_data_template = {
     "id": 0,
@@ -17,9 +18,11 @@ query_data_template = {
 
 
 class SQLQueryProcessor:
-    def __init__(self, api_key):
+    def __init__(self, filename, api_key):
         self.api_key: str = api_key
+        self.operating_file: str = filename
         self.sqlinter_model: SQLinterModel = SQLinterModel()
+        self.sql_call_visitor = SQLCallVisitor()
         self.gpt: GPTModel = None
         self.original_queries: list = None
         self.parsed_queries: list = None
@@ -29,7 +32,7 @@ class SQLQueryProcessor:
 
     def extract_queries(self):
         """Extract SQL queries using sql_extractor"""
-        self.original_queries = sql_extractor.main()
+        self.original_queries = self.sql_call_visitor.process_file(self.operating_file)
         print(self.original_queries)
         self.parsed_queries = [query['text']
                                for query in self.original_queries]
@@ -74,7 +77,7 @@ class SQLQueryProcessor:
 def main():
     file_path = os.path.abspath(sys.argv[1])
     api_key = sys.argv[2]
-    processor = SQLQueryProcessor(api_key)
+    processor = SQLQueryProcessor(filename=file_path, api_key=api_key)
     print(processor.process())
 
 

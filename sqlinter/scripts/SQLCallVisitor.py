@@ -43,7 +43,7 @@ def get_absolute_position(file_text, lineno, col_offset):
 class SQLCallVisitor(ast.NodeVisitor):
     SQL_KEYWORDS = ("SELECT", "INSERT", "UPDATE", "DELETE", "CREATE", "DROP", "ALTER")
 
-    def __init__(self, file_content):
+    def __init__(self):
         super().__init__()
         # Словарь: имя_переменной -> список словарей {'text':..., 'start':..., 'end':...}
         self.sql_variables = {}
@@ -51,7 +51,7 @@ class SQLCallVisitor(ast.NodeVisitor):
         self.executed_queries = []
 
         # Сырой текст файла для вычисления позиций
-        self.file_content = file_content
+        self.file_content = ''
 
     def visit_Assign(self, node):
         """
@@ -73,7 +73,7 @@ class SQLCallVisitor(ast.NodeVisitor):
     def visit_Call(self, node):
         """Находим вызовы методов, где в названии есть 'execute', и извлекаем SQL."""
         func_name = self._get_func_full_name(node.func)
-        if func_name and "execute" in func_name.lower():
+        if func_name and any(i in func_name.lower() for i in ['execute', 'executemany', 'fetch', 'read_sql', 'copy_expert']):
             for arg in node.args:
                 # Если это сразу строка
                 extracted = self._extract_string_info(arg)
@@ -143,31 +143,31 @@ class SQLCallVisitor(ast.NodeVisitor):
                 }
         return None
 
+    def process_file(self, filename):
+        if not os.path.exists(filename):
+            print(f"Файл '{filename}' не найден.")
+            return
 
-def process_file(filename):
-    if not os.path.exists(filename):
-        print(f"Файл '{filename}' не найден.")
-        return
+        with open(filename, "r", encoding="utf-8") as f:
+            file_content = f.read()
 
-    with open(filename, "r", encoding="utf-8") as f:
-        file_content = f.read()
+        tree = ast.parse(file_content)
+        self.file_content = file_content
+        self.visit(tree)
 
-    tree = ast.parse(file_content)
-    visitor = SQLCallVisitor(file_content)
-    visitor.visit(tree)
-
-    # Извлекаем только уникальные словари
-    unique_executed_queries = []
-    seen = set()
-    for q in visitor.executed_queries:
-        # Преобразуем словарь в кортеж, чтобы можно было проверять в set
-        key = (q["text"], q["start"], q["end"])
-        if key not in seen:
-            unique_executed_queries.append(q)
-            seen.add(key)
-    for i in unique_executed_queries:
-        print(i)
-        print('--'*50)
+        # Извлекаем только уникальные словари
+        unique_executed_queries = []
+        seen = set()
+        for q in self.executed_queries:
+            # Преобразуем словарь в кортеж, чтобы можно было проверять в set
+            key = (q["text"], q["start"], q["end"])
+            if key not in seen:
+                unique_executed_queries.append(q)
+                seen.add(key)
+        # for i in unique_executed_queries:
+        #     print(i)
+        #     print('--'*50)
+        return unique_executed_queries
 
 
 def main():
@@ -175,7 +175,8 @@ def main():
         print("Использование: python new_extractor3.py <путь_к_файлу_с_кодом.py>")
         sys.exit(1)
     filename = sys.argv[1]
-    process_file(filename)
+    visitor = SQLCallVisitor("")  # Создаем экземпляр с пустым содержимым
+    visitor.process_file(filename)
 
 
 if __name__ == "__main__":
