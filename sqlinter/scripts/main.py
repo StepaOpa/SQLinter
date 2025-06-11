@@ -35,8 +35,9 @@ class SQLQueryProcessor:
                                    for query in self.original_sqls]
         self.queries_count = len(self.parsed_sql_queries)
         self.generate_queries_data()
-        # TODO
-        # сделать чтоб спаршенный sql запрос записался в queries_data под своим индексом
+        # Записываем SQL запросы в queries_data
+        for i, query in enumerate(self.parsed_sql_queries):
+            self.queries_data[i]['query'] = query
 
     def generate_queries_data(self):
         """Generate queries data dictionary"""
