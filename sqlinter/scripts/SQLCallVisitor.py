@@ -27,6 +27,7 @@
 import ast
 import sys
 import os
+import difflib
 
 
 def get_absolute_position(file_text, lineno, col_offset):
@@ -43,7 +44,7 @@ def get_absolute_position(file_text, lineno, col_offset):
 class SQLCallVisitor(ast.NodeVisitor):
     SQL_KEYWORDS = ("SELECT", "INSERT", "UPDATE", "DELETE", "CREATE", "DROP", "ALTER")
 
-    def __init__(self):
+    def __init__(self, file_content=""):
         super().__init__()
         # Словарь: имя_переменной -> список словарей {'text':..., 'start':..., 'end':...}
         self.sql_variables = {}
@@ -51,7 +52,8 @@ class SQLCallVisitor(ast.NodeVisitor):
         self.executed_queries = []
 
         # Сырой текст файла для вычисления позиций
-        self.file_content = ''
+        self.file_content = file_content
+
 
     def visit_Assign(self, node):
         """
@@ -70,6 +72,7 @@ class SQLCallVisitor(ast.NodeVisitor):
 
         self.generic_visit(node)
 
+
     def visit_Call(self, node):
         """Находим вызовы методов, где в названии есть 'execute', и извлекаем SQL."""
         func_name = self._get_func_full_name(node.func)
@@ -87,10 +90,22 @@ class SQLCallVisitor(ast.NodeVisitor):
                                 self.executed_queries.append(partial_sql)
         self.generic_visit(node)
 
+
     def _maybe_sql(self, text):
-        """Простейшая проверка на ключевые слова SQL."""
+        """Проверка на ключевые слова SQL с учетом возможных опечаток."""
         upper_text = text.upper()
-        return any(keyword in upper_text for keyword in self.SQL_KEYWORDS)
+        # Точное совпадение
+        for keyword in self.SQL_KEYWORDS:
+            if keyword in upper_text:
+                return True
+        # Фаззи-проверка по отдельным словам
+        words = upper_text.split()
+        for keyword in self.SQL_KEYWORDS:
+            for word in words:
+                if difflib.SequenceMatcher(None, word, keyword).ratio() > 0.8:
+                    return True
+        return False
+
 
     def _get_func_full_name(self, func):
         """Собираем полное имя функции (например, 'conn.cursor.execute')."""
@@ -100,6 +115,7 @@ class SQLCallVisitor(ast.NodeVisitor):
             parent_name = self._get_func_full_name(func.value)
             return f"{parent_name}.{func.attr}" if parent_name else func.attr
         return None
+
 
     def _extract_string_info(self, node):
         """
@@ -143,10 +159,11 @@ class SQLCallVisitor(ast.NodeVisitor):
                 }
         return None
 
+
     def process_file(self, filename):
         if not os.path.exists(filename):
-            print(f"Файл '{filename}' не найден.")
-            return
+            # print(f"Файл '{filename}' не найден.")  # убираем отладочный вывод
+            return []
 
         with open(filename, "r", encoding="utf-8") as f:
             file_content = f.read()
@@ -164,9 +181,7 @@ class SQLCallVisitor(ast.NodeVisitor):
             if key not in seen:
                 unique_executed_queries.append(q)
                 seen.add(key)
-        # for i in unique_executed_queries:
-        #     print(i)
-        #     print('--'*50)
+        
         return unique_executed_queries
 
 

@@ -116,33 +116,46 @@ async function runPythonScript(rootPath: string, filePath: string, apiKey?: stri
     console.log(`запущен скрипт: ${pythonScriptPath}`);
     const command = `python "${pythonScriptPath}" "${filePath}" ${apiKey ? `"${apiKey}"` : ''}`;
     
-    const { stdout, stderr } = await execAsync(command, {encoding: 'utf-8'});
+    // Явно устанавливаем кодировку UTF-8 для Windows
+    const execOptions = {
+        encoding: 'utf-8' as BufferEncoding,
+        env: { 
+            ...process.env, 
+            PYTHONIOENCODING: 'utf-8'  // Принудительно устанавливаем UTF-8 для Python
+        }
+    };
+    
+    const { stdout, stderr } = await execAsync(command, execOptions);
     
     const outputChannel = vscode.window.createOutputChannel('Python Output');
-
 
     outputChannel.appendLine(stdout);
     if (stderr) outputChannel.appendLine(`Ошибки: ${stderr}`);
     outputChannel.show();
-    // console.log(`питон аутпут: ${stdout}`);
+    
     try {
-        
         // Парсим JSON
         const result = JSON.parse(stdout);
-        // console.log(result);
         if (result.error) {
             throw new Error(result.error);
         }
 
         // result теперь содержит массив SQL-запросов
         return result as Array<{
+            id: number;
             query: string;
             verdict: string;
             reason: string;
+            correction: string;
             start: number;
             end: number;
+            // Добавляем новые поля с информацией о позициях
+            start_line?: number;
+            start_column?: number;
+            end_line?: number;
+            end_column?: number;
+            line_content?: string;
         }>;
-
 
     } catch (error) {
         vscode.window.showErrorMessage(`Ошибка парсинга SQL: ${error}`);
@@ -159,29 +172,88 @@ async function highlightSqlQueries(document: vscode.TextDocument, extractedQueri
         // 1. Запускаем Python-скрипт
         const queries = extractedQueries;
 
-        // 2. Создаем декорации для подсветки
-        const decorations: vscode.DecorationOptions[] = [];
-        decorationType = vscode.window.createTextEditorDecorationType({
-            backgroundColor: 'rgba(100, 200, 100, 0.2)',
-            border: '1px solid rgba(100, 200, 100, 0.7)',
+        // 2. Группируем запросы по типам вердиктов
+        const correctQueries: vscode.DecorationOptions[] = [];
+        const errorQueries: vscode.DecorationOptions[] = [];
+        const warningQueries: vscode.DecorationOptions[] = [];
+        const unknownQueries: vscode.DecorationOptions[] = [];
+
+        // 3. Создаем типы декораций для разных вердиктов
+        const correctDecorationType = vscode.window.createTextEditorDecorationType({
+            backgroundColor: 'rgba(34, 197, 94, 0.2)', // зеленый для правильных
+            border: '1px solid rgba(34, 197, 94, 0.7)',
             borderRadius: '2px'
         });
 
-        // 3. Преобразуем позиции
+        const errorDecorationType = vscode.window.createTextEditorDecorationType({
+            backgroundColor: 'rgba(239, 68, 68, 0.2)', // красный для ошибок
+            border: '1px solid rgba(239, 68, 68, 0.7)',
+            borderRadius: '2px'
+        });
+
+        const warningDecorationType = vscode.window.createTextEditorDecorationType({
+            backgroundColor: 'rgba(245, 158, 11, 0.2)', // желтый для предупреждений
+            border: '1px solid rgba(245, 158, 11, 0.7)',
+            borderRadius: '2px'
+        });
+
+        const unknownDecorationType = vscode.window.createTextEditorDecorationType({
+            backgroundColor: 'rgba(107, 114, 128, 0.2)', // серый для неопределенных
+            border: '1px solid rgba(107, 114, 128, 0.7)',
+            borderRadius: '2px'
+        });
+
+        // 4. Преобразуем позиции и группируем по типам
         queries.forEach((query: any) => {
             const startPos = document.positionAt(query.start);
             const endPos = document.positionAt(query.end);
             
-            decorations.push({
-                range: new vscode.Range(startPos, endPos),
+            // Альтернативный способ через номер строки и колонку (если доступно)
+            let range: vscode.Range;
+            if (query.start_line && query.start_column !== undefined && query.end_line && query.end_column !== undefined) {
+                // Используем точные номера строк и колонок
+                const startPosAlt = new vscode.Position(query.start_line - 1, query.start_column);
+                // VS Code Range использует exclusive end, поэтому добавляем +1 к end_column
+                const endPosAlt = new vscode.Position(query.end_line - 1, query.end_column + 1);
+                range = new vscode.Range(startPosAlt, endPosAlt);
+                
+                // Для отладки: сравниваем с абсолютными позициями
+                if (process.env.NODE_ENV === 'development') {
+                    console.log(`SQL Query ${query.id}: 
+                        Absolute: ${startPos.line}:${startPos.character} - ${endPos.line}:${endPos.character}
+                        Line/Col: ${startPosAlt.line}:${startPosAlt.character} - ${endPosAlt.line}:${endPosAlt.character}
+                        Content: "${query.line_content?.substring(query.start_column, query.end_column + 1) || 'N/A'}"`);
+                }
+            } else {
+                // Используем абсолютные позиции (старый способ)
+                // Также добавляем +1 к конечной позиции для exclusive end
+                const adjustedEndPos = document.positionAt(query.end + 1);
+                range = new vscode.Range(startPos, adjustedEndPos);
+            }
+            
+            const decoration = {
+                range: range,
                 hoverMessage: createHoverContent(query)
-            });
+            };
+
+            if (query.verdict === 'True') {
+                correctQueries.push(decoration);
+            } else if (query.verdict === 'Error') {
+                errorQueries.push(decoration);
+            } else if (query.verdict === 'Warning') {
+                warningQueries.push(decoration);
+            } else {
+                unknownQueries.push(decoration);
+            }
         });
 
-        // 4. Применяем подсветку
+        // 5. Применяем подсветку для каждого типа
         const editor = vscode.window.activeTextEditor;
         if (editor) {
-            editor.setDecorations(decorationType, decorations);
+            editor.setDecorations(correctDecorationType, correctQueries);
+            editor.setDecorations(errorDecorationType, errorQueries);
+            editor.setDecorations(warningDecorationType, warningQueries);
+            editor.setDecorations(unknownDecorationType, unknownQueries);
         }
 
     } catch (error) {
@@ -191,11 +263,46 @@ async function highlightSqlQueries(document: vscode.TextDocument, extractedQueri
 
 function createHoverContent(query: any): vscode.MarkdownString {
     const md = new vscode.MarkdownString();
-    // Детали анализа
-    md.appendMarkdown(`**SQL-запрос**: ${query.query}\n`);
-    md.appendMarkdown('### Детали:\n');
-    md.appendMarkdown(`- **Тип**: ${(query.verdict)}\n`);
-    md.appendMarkdown(`- **Проблема:**: ${query.reason || 'Нет критических проблем'}\n`);
+    
+    // Заголовок с номером запроса
+    md.appendMarkdown(`**SQL-запрос #${query.id + 1}**\n\n`);
+    
+    // Оригинальный запрос
+    md.appendCodeblock(query.query, 'sql');
+    
+    // Определяем иконку и статус в зависимости от вердикта
+    let statusIcon = '';
+    let statusText = '';
+    
+    if (query.verdict === 'True') {
+        statusIcon = '[OK]';
+        statusText = 'Запрос корректен';
+    } else if (query.verdict === 'Error') {
+        statusIcon = '[ERROR]';
+        statusText = 'Ошибка в запросе';
+    } else if (query.verdict === 'Warning') {
+        statusIcon = '[WARNING]';
+        statusText = 'Запрос можно улучшить';
+    } else {
+        statusIcon = '[SQL]';
+        statusText = 'SQL запрос обнаружен';
+    }
+    
+    // Показываем анализ GPT
+    md.appendMarkdown('### Анализ:\n');
+    md.appendMarkdown(`${statusIcon} **Статус**: ${statusText}\n`);
+    
+    // Показываем описание от GPT
+    if (query.reason && query.reason.trim() !== '') {
+        md.appendMarkdown(`**Описание**: ${query.reason}\n`);
+    }
+    
+    // Исправление от SQLinter (если есть)
+    if (query.correction && query.correction.trim() !== '' && query.correction !== query.query) {
+        md.appendMarkdown('\n### Предлагаемое исправление:\n');
+        md.appendCodeblock(query.correction, 'sql');
+    }
+    
     return md;
 }
 

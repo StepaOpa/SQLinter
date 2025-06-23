@@ -30,17 +30,23 @@ age INTEGER
 
 cursor.execute(sql2)
 
-
+# Исправляем неполные выражения
+days = 30
 query = '''
             SELECT o.id, o.date, u.name
             FROM orders o
             JOIN users u ON o.user_id = u.id
             WHERE o.date > NOW() - INTERVAL '%s days'
-        ''' %
+        ''' % days
 cursor.execute(query)
-query = 'SELECT * FROM users WHERE name LIKE'
+
+query = 'SELECT * FROM users WHERE name LIKE \'%test%\''
 cursor.execute(query)
-query = "INSERT INTO orders (user_id, items) VALUES (%s, '%s')" %
+
+user_id = 1
+items = 'item1,item2'
+query = "INSERT INTO orders (user_id, items) VALUES (%s, '%s')" % (
+    user_id, items)
 cursor.execute(query)
 
 query = """
@@ -60,6 +66,8 @@ query = """
 """
 cursor.execute(query)
 
+table = 'users'
+days = 30
 query = f'''DELETE FROM "{table}" WHERE created_at < NOW() - INTERVAL '{days} days'''
 cursor.execute(query)
 

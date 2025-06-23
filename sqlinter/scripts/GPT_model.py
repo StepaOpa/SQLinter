@@ -21,10 +21,12 @@ class GPTModel(OpenAI):
     def _get_raw_gpt_output(self, sqlquerries) -> str:
         prompt = (f'''
                 Это входящие SQL запросы взятые из реального проекта:{sqlquerries}. Твоя задача определить их правильность 
-                и вынести вердикты в виде True или False. True - запрос правильный, Error - запрос абсолютно неправильный, Warning - запрос правильный, но можно сделать лучше.
-                Если вердикт Error или Warning, то ты должен вынести причину, почему он неправильный и переделать этот запрос чтоб он стал правильным.
-                Если запрос правильный, то ничего не выводи.
-                На выходе мне надо получить python список вида [['входящий sql запрос', 'вердикт', 'причина, почему он неправильный'], ['входящий sql запрос', 'вердикт', 'причина, почему он неправильный']]
+                и вынести вердикты в виде True или False. True - запрос правильный, Error - запрос абсолютно неправильный, Warning - запрос правильный, но можно сделать лучше.
+                Если вердикт Error или Warning, то ты должен объяснить причину, почему запрос неправильный или может быть улучшен.
+                Если запрос правильный (True), то в качестве причины выведи пустую строку "".
+                НЕ ПРЕДЛАГАЙ исправления запросов - только анализируй и объясняй проблемы.
+                На выходе мне надо получить python список вида [['входящий sql запрос', 'вердикт', 'причина/объяснение'], ['входящий sql запрос', 'вердикт', 'причина/объяснение']]
+                ВАЖНО: Обязательно включи в список ВСЕ входящие запросы, даже правильные.
                 Я буду этот список передавать далее для обработки в другом скрипте, поэтому в твоем ответе не должно быть ничего кроме этого списка. 
                 Комментарии пиши на русском языке
                 '''
@@ -56,17 +58,28 @@ class GPTModel(OpenAI):
             raw_gpt_output = self._get_raw_gpt_output(self.sqlquerries)
             cleaned_output = self._clean_gpt_output(raw_gpt_output)
             self.parsed_queries = ast.literal_eval(cleaned_output)
-            for i, item in enumerate(self.parsed_queries):
-                self.queries_data[i].update({
-                    "query": item[0],
-                    "verdict": item[1],
-                    "reason": item[2],
-                })
+            
+            # Сопоставляем GPT-ответы с исходными запросами по содержимому
+            for i, gpt_item in enumerate(self.parsed_queries):
+                gpt_query = gpt_item[0]
+                gpt_verdict = gpt_item[1]
+                gpt_reason = gpt_item[2]
+                
+                # Ищем соответствующий запрос в queries_data
+                for j, query_data in enumerate(self.queries_data):
+                    if query_data["query"] == gpt_query:
+                        query_data.update({
+                            "verdict": gpt_verdict,
+                            "reason": gpt_reason,
+                        })
+                        break
+            
             self.is_data_processed = True
             return self.queries_data
 
         except (SyntaxError, ValueError, IndexError) as e:
-            print(f"Ошибка парсинга: {e}")
+            return None
+        except Exception as e:
             return None
 
     @property

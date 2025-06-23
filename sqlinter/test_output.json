@@ -1,0 +1,9 @@
+[
+  {
+    "id": 0,
+    "query": "SELECT * FROM users",
+    "verdict": "Warning",
+    "reason": "Запрос может быть улучшен. GPT анализ недоступен.",
+    "correction": "SELECT * FROM users"
+  }
+]

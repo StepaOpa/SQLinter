@@ -3,7 +3,14 @@ import os
 import json
 import sys
 from SQLinterModel import SQLinterModel
-from SQLCallVisitor import SQLCallVisitor
+from sql_searcher import SQLSearcher
+import locale
+
+# Настройка кодировки для корректного вывода
+if sys.platform == "win32":
+    # На Windows устанавливаем UTF-8 для вывода
+    sys.stdout.reconfigure(encoding='utf-8')
+    sys.stderr.reconfigure(encoding='utf-8')
 
 query_data_template = {
     "id": 0,
@@ -21,19 +28,35 @@ class SQLQueryProcessor:
         self.api_key: str = api_key
         self.operating_file: str = filename
         self.sqlinter_model: SQLinterModel = SQLinterModel()
-        self.sql_call_visitor = SQLCallVisitor()
+        self.sql_searcher: SQLSearcher = None
         self.gpt: GPTModel = None
         self.original_queries: list = None
         self.parsed_queries: list = None
         self.queries_data: list[dict] = []
         self.queries_count: int = None
-        print('initialized')
 
     def extract_queries(self):
-        """Extract SQL queries using sql_extractor"""
-        self.original_queries = self.sql_call_visitor.process_file(
+        """Extract SQL queries using sql_searcher"""
+        self.sql_searcher = SQLSearcher()
+        searcher_results = self.sql_searcher.find_sql_in_file(
             self.operating_file)
-        print(self.original_queries)
+
+        # Адаптируем формат данных под ожидаемый интерфейс
+        self.original_queries = []
+        for result in searcher_results:
+            adapted_query = {
+                'text': result['sql_query'],
+                'start': result['start_pos'],
+                'end': result['end_pos'],
+                # Добавляем новые поля с информацией о позициях
+                'start_line': result.get('start_line'),
+                'start_column': result.get('start_column'),
+                'end_line': result.get('end_line'),
+                'end_column': result.get('end_column'),
+                'line_content': result.get('line_content')
+            }
+            self.original_queries.append(adapted_query)
+
         self.parsed_queries = [query['text']
                                for query in self.original_queries]
         self.queries_count = len(self.parsed_queries)
@@ -42,7 +65,13 @@ class SQLQueryProcessor:
             self.queries_data[i].update({
                 'query': item['text'],
                 "start": item['start'],
-                "end": item['end']
+                "end": item['end'],
+                # Добавляем расширенную информацию о позициях
+                "start_line": item.get('start_line'),
+                "start_column": item.get('start_column'),
+                "end_line": item.get('end_line'),
+                "end_column": item.get('end_column'),
+                "line_content": item.get('line_content')
             })
 
     def _generate_queries_data(self):
@@ -71,7 +100,10 @@ class SQLQueryProcessor:
         self.extract_queries()
         self.process_with_gpt()
         self.process_with_sqlinter()
-        return json.dumps(self.queries_data, indent=2, ensure_ascii=False)
+        
+        # Убеждаемся, что вывод в UTF-8
+        json_output = json.dumps(self.queries_data, indent=2, ensure_ascii=False)
+        return json_output
 
 
 def main():

@@ -21,7 +21,12 @@ class SQLinterModel:
             num_beams=5,
             early_stopping=True
         )
-        return self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+        # Декодируем результат
+        result = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+        
+        # print("Исправленный SQL:", result)  # убираем отладочный вывод
+        
+        return result
 
 if __name__ == "__main__":
     current_dir: Path = Path(__file__).parent

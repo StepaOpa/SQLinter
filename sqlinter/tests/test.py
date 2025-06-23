@@ -65,5 +65,5 @@ def generate_complex_report() -> List[Dict[str, Any]]:
 
 
 def cleanup_old_data(table: str, days: int) -> None:
-    query = f'''DELETE FROM "{table}" WHERE created_at < NOW() - INTERVAL '{days} days''''
+    query = f'''DELETE FROM "{table}" WHERE created_at < NOW() - INTERVAL '{days} days' '''
     execute_query(query)
