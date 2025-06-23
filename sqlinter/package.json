@@ -22,24 +22,39 @@
         "command": "sqlinter.setApiKey",
         "title": "Set OpenAI API Key",
         "category": "SQLinter"
-    },
-    {
+      },
+      {
         "command": "sqlinter.clearApiKey",
         "title": "Clear OpenAI API Key",
         "category": "SQLinter"
-    }
+      },
+      {
+        "command": "sqlinter.analyzeSql",
+        "title": "Analyze SQL",
+        "category": "SQLinter",
+        "icon": "$(wand)"
+      }
     ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "sqlinter.analyzeSql",
+          "when": "resourceExtname == .py",
+          "group": "navigation"
+        }
+      ]
+    },
     "configuration": {
-    "title": "SQLinter",
-    "properties": {
-      "sqlinter.openAiApiKey": {
-        "type": "string",
-        "default": "",
-        "description": "OpenAI API Key for SQL query analysis",
-        "scope": "application"
+      "title": "SQLinter",
+      "properties": {
+        "sqlinter.openAiApiKey": {
+          "type": "string",
+          "default": "",
+          "description": "OpenAI API Key for SQL query analysis",
+          "scope": "application"
+        }
       }
     }
-  }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

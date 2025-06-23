@@ -100,9 +100,10 @@ class SQLQueryProcessor:
         self.extract_queries()
         self.process_with_gpt()
         self.process_with_sqlinter()
-        
+
         # Убеждаемся, что вывод в UTF-8
-        json_output = json.dumps(self.queries_data, indent=2, ensure_ascii=False)
+        json_output = json.dumps(
+            self.queries_data, indent=2, ensure_ascii=False)
         return json_output
 
 

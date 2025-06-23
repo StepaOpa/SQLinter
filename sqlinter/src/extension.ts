@@ -49,6 +49,24 @@ export function activate(context: vscode.ExtensionContext) {
     return apiKey;
 }
 
+    // Вынесенная функция для анализа SQL
+    async function analyzeSqlInDocument(document: vscode.TextDocument) {
+        const absoluteFilePath = document.fileName;
+        const apiKey = await getOpenAIApiKey();
+        console.log(`Обработан файл: ${absoluteFilePath}`);
+        
+        if (document.languageId === 'python' || document.fileName.endsWith('.py')) {
+            try {
+                const sqlQueries = await runPythonScript(extensionRootPath, absoluteFilePath, apiKey);
+                console.log(sqlQueries);
+                await highlightSqlQueries(document, sqlQueries);
+                vscode.window.showInformationMessage(`Обработан файл: ${absoluteFilePath}`);
+            } catch (error) {
+                vscode.window.showErrorMessage(`Ошибка обработки ${absoluteFilePath}: ${error}`);
+            }
+        }
+    }
+
     // Команда для установки API ключа
     const setApiKeyCommand = vscode.commands.registerCommand('sqlinter.setApiKey', async () => {
         const apiKey = await vscode.window.showInputBox({
@@ -78,26 +96,45 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.window.showInformationMessage('API ключ успешно удалён!');
     });
 
-	//обработка сохранения
-const saveDisposable = vscode.workspace.onDidSaveTextDocument(async (document) => {
-    const absoluteFilePath = document.fileName; //абсолютный путь к файлу
-    const apiKey = await getOpenAIApiKey();
-    console.log(`Обработан файл: ${absoluteFilePath}`);
-    
-    if (document.languageId === 'python' || document.fileName.endsWith('.py')) {
-        try {
-            const sqlQueries = await runPythonScript(extensionRootPath, absoluteFilePath, apiKey);
-            console.log(sqlQueries);
-            await highlightSqlQueries(document, sqlQueries);
-            vscode.window.showInformationMessage(`Обработан файл: ${absoluteFilePath}`);
-        } catch (error) {
-            vscode.window.showErrorMessage(`Ошибка обработки ${absoluteFilePath}: ${error}`);
+    // Новая команда для принудительного анализа SQL
+    const analyzeSqlCommand = vscode.commands.registerCommand('sqlinter.analyzeSql', async () => {
+        const activeEditor = vscode.window.activeTextEditor;
+        
+        if (!activeEditor) {
+            vscode.window.showWarningMessage('Нет активного файла для анализа');
+            return;
         }
-    }
-});
+
+        const document = activeEditor.document;
+        
+        // Проверяем, что это Python файл
+        if (document.languageId !== 'python' && !document.fileName.endsWith('.py')) {
+            vscode.window.showWarningMessage('SQLinter работает только с Python файлами');
+            return;
+        }
+
+        // Сохраняем файл перед анализом
+        if (document.isDirty) {
+            await document.save();
+            vscode.window.showInformationMessage('Файл сохранён. Запуск анализа...');
+        } else {
+            vscode.window.showInformationMessage('Запуск анализа SQL...');
+        }
+
+        // Запускаем анализ
+        await analyzeSqlInDocument(document);
+    });
+
+    //обработка сохранения
+    const saveDisposable = vscode.workspace.onDidSaveTextDocument(async (document) => {
+        await analyzeSqlInDocument(document);
+    });
 
     // Добавляем в подписки для очистки при деактивации
     context.subscriptions.push(saveDisposable);
+    context.subscriptions.push(setApiKeyCommand);
+    context.subscriptions.push(clearApiKeyCommand);
+    context.subscriptions.push(analyzeSqlCommand);
 
     //базовый хеллоу ворлд
     const disposable = vscode.commands.registerCommand('sqlinter.helloWorld', () => {
