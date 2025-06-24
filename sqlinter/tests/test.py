@@ -26,12 +26,9 @@ class UserService:
 class OrderService:
     @staticmethod
     def get_recent_orders(days: int = 30) -> List[Dict[str, Any]]:
-        query = '''
-            SELECT o.id, o.date, u.name
-            FROM orders o
-            JOIN users u ON o.user_id = u.id
-            WHERE o.date > NOW() - INTERVAL '%s days'
-        ''' % days
+        query = '''SELECT o.id, o.date, u.name
+            FROM orders o JOIN users u ON o.user_id = u.id
+           ''' % days
         return execute_query(query)
 
     @staticmethod

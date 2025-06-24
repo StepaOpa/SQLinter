@@ -2,10 +2,116 @@ import * as vscode from 'vscode';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as path from 'path';
-
+import * as crypto from 'crypto';
 
 const execAsync = promisify(exec);
 let decorationType: vscode.TextEditorDecorationType;
+
+// Глобальное хранилище данных о SQL-запросах для CodeLens
+interface SqlQueryInfo {
+    id: number;
+    query: string;
+    verdict: string;
+    reason: string;
+    correction: string;
+    start: number;
+    end: number;
+    start_line?: number;
+    start_column?: number;
+    end_line?: number;
+    end_column?: number;
+    line_content?: string;
+    hash: string; // Уникальный хеш для идентификации запроса
+    filePath: string;
+}
+
+let currentSqlQueries: Map<string, SqlQueryInfo[]> = new Map();
+
+// Глобальное хранилище для декораций по файлам
+interface FileDecorations {
+    correctQueries: vscode.DecorationOptions[];
+    errorQueries: vscode.DecorationOptions[];
+    warningQueries: vscode.DecorationOptions[];
+    unknownQueries: vscode.DecorationOptions[];
+    // Типы декораций
+    correctDecorationType: vscode.TextEditorDecorationType;
+    errorDecorationType: vscode.TextEditorDecorationType;
+    warningDecorationType: vscode.TextEditorDecorationType;
+    unknownDecorationType: vscode.TextEditorDecorationType;
+}
+
+let currentDecorations: Map<string, FileDecorations> = new Map();
+
+// CodeLens Provider для отображения кнопок над SQL-запросами
+class SqlCodeLensProvider implements vscode.CodeLensProvider {
+    private _onDidChangeCodeLenses: vscode.EventEmitter<void> = new vscode.EventEmitter<void>();
+    public readonly onDidChangeCodeLenses: vscode.Event<void> = this._onDidChangeCodeLenses.event;
+
+    public refresh(): void {
+        this._onDidChangeCodeLenses.fire();
+    }
+
+    public provideCodeLenses(document: vscode.TextDocument, token: vscode.CancellationToken): vscode.CodeLens[] | Thenable<vscode.CodeLens[]> {
+        const codeLenses: vscode.CodeLens[] = [];
+        const filePath = document.fileName;
+        const queries = currentSqlQueries.get(filePath);
+
+        if (!queries) {
+            return codeLenses;
+        }
+
+        for (const query of queries) {
+            // Пропускаем корректные запросы без исправлений
+            if (query.verdict === 'True' || !query.correction || query.correction.trim() === '' || query.correction === query.query) {
+                continue;
+            }
+
+            let range: vscode.Range;
+            if (query.start_line !== undefined && query.start_column !== undefined && 
+                query.end_line !== undefined && query.end_column !== undefined) {
+                // Используем точные позиции
+                const startPos = new vscode.Position(query.start_line - 1, query.start_column);
+                const endPos = new vscode.Position(query.end_line - 1, query.end_column + 1);
+                range = new vscode.Range(startPos, endPos);
+            } else {
+                // Fallback к абсолютным позициям
+                const startPos = document.positionAt(query.start);
+                const endPos = document.positionAt(query.end + 1);
+                range = new vscode.Range(startPos, endPos);
+            }
+
+            // Позиция для отображения CodeLens (прямо над строкой с SQL-запросом)
+            const codeLensPosition = new vscode.Position(range.start.line, 0);
+            const codeLensRange = new vscode.Range(codeLensPosition, codeLensPosition);
+
+            // Отладочная информация для CodeLens
+            console.log(`CodeLens для SQL запроса ${query.hash}:
+                SQL: "${query.query.substring(0, 50)}..."
+                SQL Range: ${range.start.line}:${range.start.character} - ${range.end.line}:${range.end.character}
+                CodeLens позиция: ${codeLensPosition.line}:${codeLensPosition.character}
+                Исправление: "${query.correction.substring(0, 50)}..."`);
+
+            // Создаем кнопки для действий
+            const applyCommand: vscode.Command = {
+                title: `$(check) Применить исправление`,
+                command: 'sqlinter.applySqlFix',
+                arguments: [query.hash, filePath]
+            };
+
+            const dismissCommand: vscode.Command = {
+                title: `$(close) Отклонить`,
+                command: 'sqlinter.dismissSqlFix', 
+                arguments: [query.hash, filePath]
+            };
+
+            // Добавляем CodeLens для каждой кнопки
+            codeLenses.push(new vscode.CodeLens(codeLensRange, applyCommand));
+            codeLenses.push(new vscode.CodeLens(codeLensRange, dismissCommand));
+        }
+
+        return codeLenses;
+    }
+}
 
 export function activate(context: vscode.ExtensionContext) {
     const extensionRootPath = context.extensionUri.fsPath;
@@ -16,6 +122,14 @@ export function activate(context: vscode.ExtensionContext) {
         backgroundColor: 'rgba(100, 200, 100, 0.2)',
         border: '1px solid rgba(100, 200, 100, 0.7)'
     });
+
+    // Регистрируем CodeLens провайдер
+    const codeLensProvider = new SqlCodeLensProvider();
+    const codeLensProviderDisposable = vscode.languages.registerCodeLensProvider(
+        { language: 'python' },
+        codeLensProvider
+    );
+    context.subscriptions.push(codeLensProviderDisposable);
     //проверка наличия API ключа
     const config = vscode.workspace.getConfiguration('sqlinter');
     if (!config.get('openAiApiKey')) {
@@ -59,7 +173,22 @@ export function activate(context: vscode.ExtensionContext) {
             try {
                 const sqlQueries = await runPythonScript(extensionRootPath, absoluteFilePath, apiKey);
                 console.log(sqlQueries);
+                
+                // Создаем хеши для SQL запросов и сохраняем данные
+                const processedQueries: SqlQueryInfo[] = sqlQueries.map(query => ({
+                    ...query,
+                    hash: createSqlQueryHash(query.query, absoluteFilePath, query.start),
+                    filePath: absoluteFilePath
+                }));
+                
+                // Сохраняем данные для CodeLens
+                currentSqlQueries.set(absoluteFilePath, processedQueries);
+                
                 await highlightSqlQueries(document, sqlQueries);
+                
+                // Обновляем CodeLens
+                codeLensProvider.refresh();
+                
                 vscode.window.showInformationMessage(`Обработан файл: ${absoluteFilePath}`);
             } catch (error) {
                 vscode.window.showErrorMessage(`Ошибка обработки ${absoluteFilePath}: ${error}`);
@@ -125,6 +254,16 @@ export function activate(context: vscode.ExtensionContext) {
         await analyzeSqlInDocument(document);
     });
 
+    // Команда для применения исправления SQL
+    const applySqlFixCommand = vscode.commands.registerCommand('sqlinter.applySqlFix', async (queryHash: string, filePath: string) => {
+        await applySqlFix(queryHash, filePath, codeLensProvider);
+    });
+
+    // Команда для отклонения исправления SQL
+    const dismissSqlFixCommand = vscode.commands.registerCommand('sqlinter.dismissSqlFix', async (queryHash: string, filePath: string) => {
+        await dismissSqlFix(queryHash, filePath, codeLensProvider);
+    });
+
     //обработка сохранения
     const saveDisposable = vscode.workspace.onDidSaveTextDocument(async (document) => {
         await analyzeSqlInDocument(document);
@@ -135,6 +274,8 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(setApiKeyCommand);
     context.subscriptions.push(clearApiKeyCommand);
     context.subscriptions.push(analyzeSqlCommand);
+    context.subscriptions.push(applySqlFixCommand);
+    context.subscriptions.push(dismissSqlFixCommand);
 
     //базовый хеллоу ворлд
     const disposable = vscode.commands.registerCommand('sqlinter.helloWorld', () => {
@@ -206,6 +347,17 @@ async function highlightSqlQueries(document: vscode.TextDocument, extractedQueri
     diagnosticCollection.clear();
 
     try {
+        const filePath = document.fileName;
+        
+        // Очищаем старые декорации для этого файла
+        const oldDecorations = currentDecorations.get(filePath);
+        if (oldDecorations) {
+            oldDecorations.correctDecorationType.dispose();
+            oldDecorations.errorDecorationType.dispose();
+            oldDecorations.warningDecorationType.dispose();
+            oldDecorations.unknownDecorationType.dispose();
+        }
+
         // 1. Запускаем Python-скрипт
         const queries = extractedQueries;
 
@@ -247,7 +399,8 @@ async function highlightSqlQueries(document: vscode.TextDocument, extractedQueri
             
             // Альтернативный способ через номер строки и колонку (если доступно)
             let range: vscode.Range;
-            if (query.start_line && query.start_column !== undefined && query.end_line && query.end_column !== undefined) {
+            if (query.start_line !== undefined && query.start_column !== undefined && 
+                query.end_line !== undefined && query.end_column !== undefined) {
                 // Используем точные номера строк и колонок
                 const startPosAlt = new vscode.Position(query.start_line - 1, query.start_column);
                 // VS Code Range использует exclusive end, поэтому добавляем +1 к end_column
@@ -268,9 +421,12 @@ async function highlightSqlQueries(document: vscode.TextDocument, extractedQueri
                 range = new vscode.Range(startPos, adjustedEndPos);
             }
             
+            // Добавляем hash запроса для идентификации в hoverMessage
+            const queryWithHash = { ...query, hash: createSqlQueryHash(query.query, document.fileName, query.start) };
+            
             const decoration = {
                 range: range,
-                hoverMessage: createHoverContent(query)
+                hoverMessage: createHoverContent(queryWithHash)
             };
 
             if (query.verdict === 'True') {
@@ -284,7 +440,19 @@ async function highlightSqlQueries(document: vscode.TextDocument, extractedQueri
             }
         });
 
-        // 5. Применяем подсветку для каждого типа
+        // 5. Сохраняем декорации в глобальном хранилище
+        currentDecorations.set(filePath, {
+            correctQueries,
+            errorQueries,
+            warningQueries,
+            unknownQueries,
+            correctDecorationType,
+            errorDecorationType,
+            warningDecorationType,
+            unknownDecorationType
+        });
+
+        // 6. Применяем подсветку для каждого типа
         const editor = vscode.window.activeTextEditor;
         if (editor) {
             editor.setDecorations(correctDecorationType, correctQueries);
@@ -296,6 +464,42 @@ async function highlightSqlQueries(document: vscode.TextDocument, extractedQueri
     } catch (error) {
         vscode.window.showErrorMessage(`Ошибка анализа SQL: ${error}`);
     }
+}
+
+// Функция для обновления подсветки исправленного запроса на зеленую
+function updateQueryHighlightToCorrect(filePath: string, queryHash: string, range: vscode.Range) {
+    const decorations = currentDecorations.get(filePath);
+    if (!decorations) {
+        return;
+    }
+
+    // Создаем новую зеленую декорацию для исправленного запроса
+    const correctedDecoration: vscode.DecorationOptions = {
+        range: range,
+        hoverMessage: new vscode.MarkdownString('**✅ SQL-запрос исправлен**\n\nЗапрос был успешно исправлен.')
+    };
+
+    // Удаляем старую декорацию из массивов ошибок и предупреждений
+    decorations.errorQueries = decorations.errorQueries.filter(decoration => 
+        !decoration.range.isEqual(range)
+    );
+    decorations.warningQueries = decorations.warningQueries.filter(decoration => 
+        !decoration.range.isEqual(range)
+    );
+
+    // Добавляем новую зеленую декорацию
+    decorations.correctQueries.push(correctedDecoration);
+
+    // Переприменяем все декорации
+    const editor = vscode.window.activeTextEditor;
+    if (editor && editor.document.fileName === filePath) {
+        editor.setDecorations(decorations.correctDecorationType, decorations.correctQueries);
+        editor.setDecorations(decorations.errorDecorationType, decorations.errorQueries);
+        editor.setDecorations(decorations.warningDecorationType, decorations.warningQueries);
+        editor.setDecorations(decorations.unknownDecorationType, decorations.unknownQueries);
+    }
+
+    console.log(`Обновлена подсветка для запроса ${queryHash} на зеленую (исправлено)`);
 }
 
 function createHoverContent(query: any): vscode.MarkdownString {
@@ -343,6 +547,119 @@ function createHoverContent(query: any): vscode.MarkdownString {
     return md;
 }
 
+// Функция для создания хеша SQL запроса
+function createSqlQueryHash(query: string, filePath: string, position: number): string {
+    const content = `${query}:${filePath}:${position}`;
+    return crypto.createHash('md5').update(content).digest('hex').substring(0, 8);
+}
 
-export function deactivate() {}
+// Функция для применения исправления SQL
+async function applySqlFix(queryHash: string, filePath: string, codeLensProvider: SqlCodeLensProvider) {
+    try {
+        const queries = currentSqlQueries.get(filePath);
+        if (!queries) {
+            vscode.window.showErrorMessage('Данные о SQL-запросах не найдены');
+            return;
+        }
+
+        const query = queries.find(q => q.hash === queryHash);
+        if (!query) {
+            vscode.window.showErrorMessage('SQL-запрос не найден');
+            return;
+        }
+
+        if (!query.correction || query.correction.trim() === '' || query.correction === query.query) {
+            vscode.window.showWarningMessage('Исправление не доступно для этого запроса');
+            return;
+        }
+
+        // Открываем документ
+        const document = await vscode.workspace.openTextDocument(filePath);
+        const editor = await vscode.window.showTextDocument(document);
+
+        // Определяем диапазон для замены - используем точно те же позиции, что и для подсветки
+        let range: vscode.Range;
+        if (query.start_line !== undefined && query.start_column !== undefined && 
+            query.end_line !== undefined && query.end_column !== undefined) {
+            const startPos = new vscode.Position(query.start_line - 1, query.start_column);
+            const endPos = new vscode.Position(query.end_line - 1, query.end_column + 1);
+            range = new vscode.Range(startPos, endPos);
+            
+            // Отладочная информация
+            console.log(`Замена SQL запроса:
+                Hash: ${query.hash}
+                Позиции: ${query.start_line}:${query.start_column} - ${query.end_line}:${query.end_column}
+                VS Code Range: ${startPos.line}:${startPos.character} - ${endPos.line}:${endPos.character}
+                Текущий SQL: "${document.getText(range)}"
+                Новый SQL: "${query.correction}"`);
+        } else {
+            const startPos = document.positionAt(query.start);
+            const endPos = document.positionAt(query.end + 1);
+            range = new vscode.Range(startPos, endPos);
+            
+            // Отладочная информация для fallback метода
+            console.log(`Замена SQL запроса (fallback):
+                Hash: ${query.hash}
+                Абсолютные позиции: ${query.start} - ${query.end}
+                VS Code Range: ${startPos.line}:${startPos.character} - ${endPos.line}:${endPos.character}
+                Текущий SQL: "${document.getText(range)}"
+                Новый SQL: "${query.correction}"`);
+        }
+
+        // Применяем исправление
+        await editor.edit(editBuilder => {
+            editBuilder.replace(range, query.correction);
+        });
+
+        // Обновляем подсветку на зеленую (исправлено)
+        updateQueryHighlightToCorrect(filePath, queryHash, range);
+
+        // Удаляем запрос из списка (больше не нужен CodeLens)
+        const updatedQueries = queries.filter(q => q.hash !== queryHash);
+        currentSqlQueries.set(filePath, updatedQueries);
+        
+        // Обновляем CodeLens
+        codeLensProvider.refresh();
+
+        vscode.window.showInformationMessage('SQL-запрос успешно исправлен!');
+
+    } catch (error) {
+        vscode.window.showErrorMessage(`Ошибка при применении исправления: ${error}`);
+    }
+}
+
+// Функция для отклонения исправления SQL
+async function dismissSqlFix(queryHash: string, filePath: string, codeLensProvider: SqlCodeLensProvider) {
+    try {
+        const queries = currentSqlQueries.get(filePath);
+        if (!queries) {
+            return;
+        }
+
+        // Удаляем запрос из списка (скрываем CodeLens для этой сессии)
+        const updatedQueries = queries.filter(q => q.hash !== queryHash);
+        currentSqlQueries.set(filePath, updatedQueries);
+        
+        // Обновляем CodeLens
+        codeLensProvider.refresh();
+
+        vscode.window.showInformationMessage('Исправление отклонено');
+
+    } catch (error) {
+        vscode.window.showErrorMessage(`Ошибка при отклонении исправления: ${error}`);
+    }
+}
+
+
+
+export function deactivate() {
+    // Очищаем все декорации при деактивации
+    for (const [filePath, decorations] of currentDecorations) {
+        decorations.correctDecorationType.dispose();
+        decorations.errorDecorationType.dispose();
+        decorations.warningDecorationType.dispose();
+        decorations.unknownDecorationType.dispose();
+    }
+    currentDecorations.clear();
+}
 

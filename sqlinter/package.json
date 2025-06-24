@@ -33,6 +33,18 @@
         "title": "Analyze SQL",
         "category": "SQLinter",
         "icon": "$(wand)"
+      },
+      {
+        "command": "sqlinter.applySqlFix",
+        "title": "Apply SQL Fix",
+        "category": "SQLinter",
+        "icon": "$(check)"
+      },
+      {
+        "command": "sqlinter.dismissSqlFix",
+        "title": "Dismiss SQL Fix",
+        "category": "SQLinter",
+        "icon": "$(close)"
       }
     ],
     "menus": {
